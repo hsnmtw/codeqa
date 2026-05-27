@@ -1,0 +1,15 @@
+[*]
+editor.inlineSuggest.enabled = true
+
+[*.c]
+c_new_line_before_open_brace = none
+c_new_line_before_else = false
+c_new_line_before_catch = false
+c_new_line_before_finally = false
+
+#  CSharp formatting rules:
+[*.cs]
+csharp_new_line_before_open_brace = none
+csharp_new_line_before_else = false
+csharp_new_line_before_catch = false
+csharp_new_line_before_finally = false
