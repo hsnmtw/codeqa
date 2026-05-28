@@ -97,11 +97,14 @@ static const size_t PRIMES[] = {
     102877, 205759, 411527, 823117, 1646237, 3292489, 6584983, 13169977
 };
 static const size_t PRIMES_LEN = sizeof(PRIMES) / sizeof(PRIMES[0]);
-static const double LOAD_FACTOR = 0.65;
+static const double LOAD_FACTOR = 0.35;
 
 static size_t next_prime(size_t min) {
-    for (size_t i = 0; i < PRIMES_LEN; i++)
-        if (PRIMES[i] > min) return PRIMES[i];
+    // for (size_t i = 0; i < PRIMES_LEN; i++) {
+    //     if (PRIMES[i] > min) {
+    //         return PRIMES[i];
+    //     }
+    // }
     return min * 2 + 1;  // fallback for very large maps
 }
 
@@ -171,8 +174,8 @@ static uint64_t djb2(const char* key) {
 
 static uint64_t hash(const char* key) {
     // return myhash(key);
-    // return djb2(key);
-    return wyhash(key);
+    return djb2(key);
+    // return wyhash(key);
 }
 
 #define TOMB ((char*)-1)   // deleted slot marker

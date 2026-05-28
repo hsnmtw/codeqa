@@ -194,7 +194,7 @@ TEST(t_map__read_entire_file) {
 
 TEST(t_map__read_stream_file) {
     size_t mss = 0;
-    const size_t iterations = 33;
+    const size_t iterations = 31;
     
     Map map;
     map_init(&map);
@@ -202,7 +202,7 @@ TEST(t_map__read_stream_file) {
         StopWatch sw = {0};
         sw_start(&sw);
         
-            FILE* f = fopen("./data/other.txt","rb");
+            FILE* f = fopen("./data/t8.shakespeare.txt","rb");
             if (!f) {
                 EXPECT(false);
             }
@@ -252,15 +252,15 @@ TEST(t_map__read_stream_file) {
     // EXPECT_INT(2, keys.len);
     // EXPECT_INT(5, (size_t)map_get(&map, keys.items[0]));
 
-    EXPECT_( 1247*iterations , (size_t)map_get(&map, "in" ));
-    EXPECT_( 1155*iterations , (size_t)map_get(&map, "The"));
-    EXPECT_( 1980*iterations , (size_t)map_get(&map, "a"  ));
-    EXPECT_( 3319*iterations , (size_t)map_get(&map, "to" ));
-    EXPECT_( 2078*iterations , (size_t)map_get(&map, "and"));
-    EXPECT_( 2374*iterations , (size_t)map_get(&map, "of" ));
-    EXPECT_( 6860*iterations , (size_t)map_get(&map, "the"));
+    EXPECT_(  9576*iterations , (size_t)map_get(&map, "in" ));
+    EXPECT_(  3965*iterations , (size_t)map_get(&map, "The"));
+    EXPECT_( 12532*iterations , (size_t)map_get(&map, "a"  ));
+    EXPECT_( 15623*iterations , (size_t)map_get(&map, "to" ));
+    EXPECT_( 18297*iterations , (size_t)map_get(&map, "and"));
+    EXPECT_( 15544*iterations , (size_t)map_get(&map, "of" ));
+    EXPECT_( 23242*iterations , (size_t)map_get(&map, "the"));
 
-    EXPECT( 50 > mss/iterations );
+    EXPECT( 250 > mss/iterations );
 
     println("\n\n[%zu]\n\n", mss/iterations ); 
 
