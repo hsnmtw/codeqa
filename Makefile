@@ -10,7 +10,6 @@ codeqa: ./src/codeqa.c
 		-Wconversion                    \
 		-Wformat=2                      \
 		-Wshadow                        \
-		-O3                             \
 		-march=native                   \
 		-fstack-protector-strong        \
 		-D_FORTIFY_SOURCE=2             \
@@ -18,4 +17,6 @@ codeqa: ./src/codeqa.c
 		./src/codeqa.c                  \
 		-o ./bin/codeqa.out             \
 		-I./include 
+#		-O3                             \
+# 		-fsanitize=leak                 \
 # ./bin/codeqa.out

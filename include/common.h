@@ -98,7 +98,7 @@ void sw_stop(StopWatch* sw);
 void sb_init(StringBuilder* sb);
 void sb_to_sv_and_clear_sb(StringBuilder* sb, StringView* sv);
 void sb_set_length(StringBuilder* sb, size_t len);
-bool sb_push(StringBuilder* sb, char* s);
+bool sb_push(StringBuilder* sb, const char* s);
 void sb_free(StringBuilder* sb);
 
 #define sb_fpush(sb,fmt,...) sb_push(sb, tmp_sprintf(fmt __VA_OPT__(,)__VA_ARGS__))
@@ -179,7 +179,15 @@ void sb_init(StringBuilder* sb) {
 }
 
 void sb_free(StringBuilder* sb) {
-    for (size_t i = 0; i < sb->len; i++) free(sb->items[i]);
+    if (!sb || !sb->items) {
+        return;
+    }
+
+    for (size_t i = 0; i < sb->len; i++) {
+        if (sb->items[i]) {
+            free(sb->items[i]);
+        }
+    }
     free(sb->items);
     sb->items    = NULL;
     sb->len      = 0;
@@ -199,9 +207,9 @@ static bool sb_grow(StringBuilder* sb) {
 
 // -- core append (owns the formatted string) ----------------------------------
 
-bool sb_push(StringBuilder* sb, char* s) {
-    if (sb->len == sb->capacity && !sb_grow(sb)) { free(s); return false; }
-    sb->items[sb->len++] = s;
+bool sb_push(StringBuilder* sb, const char* s) {
+    if (sb->len == sb->capacity && !sb_grow(sb)) { return false; }
+    sb->items[sb->len++] = sdup(s);
     return true;
 }
 
