@@ -47,14 +47,14 @@ void read_entire_file(const char *file_path, StringView *sv) {
     // --- open ---
     FILE *f = fopen(file_path, "rb");
     if (!f) {
-        log_error(tmp_sprintf("%s: fopen failed: %s\n", __FUNCTION__, strerror(errno)));
+        ERR("%s: fopen failed: %s\n", __FUNCTION__, strerror(errno));
         return;
     }
 
     // --- get size via stat ---
     struct stat st;
     if (stat(file_path, &st) != 0) {
-        log_error(tmp_sprintf("%s: stat failed: %s\n", __FUNCTION__, strerror(errno)));
+        ERR("%s: stat failed: %s\n", __FUNCTION__, strerror(errno));
         fclose(f);
         return;
     }
@@ -63,7 +63,7 @@ void read_entire_file(const char *file_path, StringView *sv) {
     // --- allocate (+1 for null terminator) ---
     char *buf = malloc(size + 1);
     if (!buf) {
-        log_error(tmp_sprintf("%s: out of memory: %s\n", __FUNCTION__, strerror(errno)));
+        ERR("%s: out of memory: %s\n", __FUNCTION__, strerror(errno));
         fclose(f);
         return;
     }
@@ -71,7 +71,7 @@ void read_entire_file(const char *file_path, StringView *sv) {
     // --- read ---
     size_t read = fread(buf, 1, size, f);
     if (read != size) {
-        log_error(tmp_sprintf("fread: expected %zu bytes, got %zu\n", size, read));
+        ERR("fread: expected %zu bytes, got %zu\n", size, read);
         free(buf);
         fclose(f);
         return;

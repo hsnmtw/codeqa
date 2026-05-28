@@ -17,6 +17,11 @@
 })
 
 #define sdup(x) tmp_sprintf("%s",x)
+#define ANSI_ERR "\033[1;41;37m"
+#define ANSI_WRN "\033[1;43;37m"
+#define ANSI_INF "\033[1;42;37m"
+#define ANSI_DBG "\033[1;44;37m"
+#define ANSI_TRC "\033[1;44;40m"
 
 #define F_RED   "\033[31m"
 #define F_GREEN "\033[32m"
@@ -36,16 +41,19 @@
 #define RESET   "\033[0m"     
 
 #define todo(s) do { printf(B_RED""F_WHITE" TODO: "RESET" %s:%d <%s> ["F_AMBER"%s"RESET"]\n", __FILE__, __LINE__,__FUNCTION__,s); exit(1); } while (0)
-#define unused(x) ((void)x) 
+#define unused(x) (void)x
 
 typedef struct {
     char* buffer;
     size_t len;
 } StringView;
 
-void log_error(const char* message);
-void log_warning(const char* message);
-void log_info(const char* message);
+#define ERR(fmt,...) printf(ANSI_ERR" ERR: "RESET" "fmt"\n",##__VA_ARGS__)
+#define WRN(fmt,...) printf(ANSI_WRN" WRN: "RESET" "fmt"\n",##__VA_ARGS__)
+#define INF(fmt,...) printf(ANSI_INF" INF: "RESET" "fmt"\n",##__VA_ARGS__)
+#define DBG(fmt,...) printf(ANSI_DBG" DBG: "RESET" "fmt"\n",##__VA_ARGS__)
+#define TRC(fmt,...) printf(ANSI_TRC" TRC: "RESET" "fmt"\n",##__VA_ARGS__)
+
 
 bool is_cstr_starts_with(const char *hay, const char *needle);
 bool is_cstr_starts_with_i(const char *hay, const char *needle);
@@ -92,15 +100,7 @@ bool is_cstr_contains(const char *hay, const char *needle) {
     return strstr(hay, needle) != NULL;
 }
 
-void log_error(const char* message) {
-    printf(B_RED""F_WHITE" ERR: "RESET" %s\n", message);
-}
-void log_warning(const char* message) {
-    printf(B_AMBER""F_RED" WRN: "RESET" %s\n", message);
-}
-void log_info(const char* message) {
-    printf(B_GREEN""F_WHITE" INF: "RESET" %s\n", message);
-}
+
 
 #endif//COMMON_IMPL
 

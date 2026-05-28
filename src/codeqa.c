@@ -27,7 +27,7 @@ void parse_arguments(Options* options, int argc, char** argv) {
         if (is_cstr_starts_with(argv[i],"-f")) {
             i++;
             if (i >= argc) {
-                log_error("you need to provide path of a file/folder after argument -f");
+                ERR("you need to provide path of a file/folder after argument -f");
                 usage();
                 exit(1);
             }
@@ -86,28 +86,20 @@ int main(int argc, char** argv) {
     unused(argc);
     unused(argv);
     
-    DynamicArray da = DA_OF("five","2","5","4","3","four","1","two","three");
+    DynamicArray da = DA_OF("1","1","1");
+    DynamicArray unique = {0};
 
-    for (size_t i=0;i<da.len;++i) {
-        log_info(tmp_sprintf("da[%zu] = '%s'", i, da.items[i]));
-    }
+    da_distinct(&da, &unique);
 
-    log_warning(tmp_sprintf("da.len = %zu", da.len));
-    log_warning(tmp_sprintf("da.capacity = %zu", da.capacity));
-
-    printf("---------------------------------------------------\n");
-
-    DynamicArray filtered = {0};
-
-    da_filter(&da, even, &filtered);
+    DBG("------------------------------- da");
+    INF("count = %zu", da.len);
+    DBG("------------------------------- unique");
+    INF("count = %zu", unique.len);
     
-    for (size_t i=0;i<filtered.len;++i) {
-        log_info(tmp_sprintf("da[%zu] = '%s'", i, filtered.items[i]));
-    }
+    WRN("");
+    DBG("");
+    TRC("");
 
-    log_warning(tmp_sprintf("da.len = %zu", filtered.len));
-    log_warning(tmp_sprintf("da.capacity = %zu", filtered.capacity));
-
-    log_info("------------------------\nExit normally");
+    ERR("------------------------ TESTING ERROR COLORS\nExit normally");
     return 0;
 }

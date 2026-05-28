@@ -4,6 +4,16 @@
 #define COMMON_IMPL
 #include "common.h"
 #include <stdbool.h>
+#include <errno.h>
+
+#define HSET_EMPTY NULL
+#define HSET_LOAD  0.7
+
+typedef struct {
+    char** slots;
+    size_t capacity;
+    size_t count;
+} HashSet;
 
 typedef struct {
     char** items;
@@ -35,17 +45,58 @@ typedef struct {
 // -------------------------------------------------------------
 typedef char* (*FunctionStringToString)(const char*, size_t index);
 typedef bool (*FunctionStringPredicate)(const char*, size_t index);
-void da_map(DynamicArray* da, FunctionStringToString func, DynamicArray* result);
-void da_filter(DynamicArray* da, FunctionStringPredicate func, DynamicArray* result);
-int  da_index_of(DynamicArray *da, const char *value);
-void da_insert(DynamicArray* da, const char* value);
-bool da_remove_at(DynamicArray* da, int index);
+
+void da_map(DynamicArray* src, DynamicArray* dest, FunctionStringToString func);
+void da_filter(DynamicArray* src, DynamicArray* dest, FunctionStringPredicate func);
+void da_distinct(DynamicArray* src, DynamicArray* dest);
+size_t da_count(DynamicArray* da, FunctionStringPredicate func);
+
+int  da_locate(DynamicArray *da, const char *value);
+bool da_remove(DynamicArray* da, int index);
+void da_init(DynamicArray* da);
 void da_clear(DynamicArray* da);
 void da_free(DynamicArray* da);
 void da_sort(DynamicArray* da);
+char* da_pop(DynamicArray* da);
+void da_push(DynamicArray* da, const char* value);
+void da_queue(DynamicArray* da, const char* value);
+
 
 #ifdef DA_IMPL
-int da_index_of(DynamicArray *da, const char *value) {
+
+void da_queue(DynamicArray* da, const char* value) {
+    if (da == NULL) return;
+
+    if (da->len >= da->capacity) {
+        // extend the array by one item
+        da_push(da,"");
+        // move elements of array one item to right
+        // void *memmove(void dest[.n], const void src[.n], size_t n);
+        memmove(&da->items[1], // char* dest
+                &da->items[0], // char* src
+                (da->len-1) * sizeof(char *));        
+    } else {
+        // move elements of array one item to right
+        memmove(&da->items[1],
+                &da->items[0],
+                (da->len++) * sizeof(char *));
+    }
+
+    //place the value at top of the list
+    da->items[0] = sdup(value);
+}
+
+char* da_pop(DynamicArray* da) {
+    if (da == NULL || da->items == NULL || da->len == 0 || !da->items[0]) return NULL;
+    char* result = sdup(da->items[0]);
+    if (!da_remove(da,0)) {
+        WRN("%s: failed to pop an item from the list : %s",__FUNCTION__,strerror(errno));
+        return NULL;
+    }
+    return result;
+}
+
+int da_locate(DynamicArray *da, const char *value) {
     if (da == NULL || da->items == NULL || value == NULL) {
         return -1;
     }
@@ -62,7 +113,7 @@ int da_index_of(DynamicArray *da, const char *value) {
     return -1;
 }
 
-void da_insert(DynamicArray *da, const char *value) {
+void da_push(DynamicArray *da, const char *value) {
     // --- grow if needed ---
     if (da->len >= da->capacity) {
         size_t new_cap = da->capacity == 0 || da->len == 0
@@ -75,7 +126,7 @@ void da_insert(DynamicArray *da, const char *value) {
             // first grow from stack — must copy to heap manually
             new_items = malloc(new_cap * sizeof(char *));
             if (!new_items) { 
-                log_error(tmp_sprintf("%s: out of memory\n", __FUNCTION__));
+                ERR("%s: out of memory\n", __FUNCTION__);
                 return;
             }
             memcpy(new_items, da->items, da->len * sizeof(char *));
@@ -83,7 +134,7 @@ void da_insert(DynamicArray *da, const char *value) {
             da->stack = false;   // now heap-owned, safe to realloc from now on
             new_items = realloc(da->items, new_cap * sizeof(char *));
             if (!new_items) { 
-                log_error(tmp_sprintf("%s: out of memory\n", __FUNCTION__));
+                ERR("%s: out of memory\n", __FUNCTION__);
                 return;
             }
         }
@@ -98,30 +149,51 @@ void da_insert(DynamicArray *da, const char *value) {
 }
 
 void da_free(DynamicArray *da) {
-    for (size_t i = 0; i < da->len; i++) {
-        if (da->items[i] != NULL) {
-            free(da->items[i]);
+    if(!da || !da->items) {
+        return;
+    }
+
+    if (!da->stack) {
+        for (size_t i = 0; i < da->len; i++) {
+            if (da->items[i] != NULL) {
+                free(da->items[i]);
+            }
+        }
+        if (da->items != NULL) {
+            free(da->items);
         }
     }
-    if (da->items != NULL) {
-        free(da->items);
-    }
+
     da->items    = NULL;
     da->len      = 0;
     da->capacity = 0;
     da->stack    = false;
 }
 
-bool da_remove_at(DynamicArray *da, int index) {
+bool da_remove(DynamicArray *da, int index) {
     if (da == NULL || da->items == NULL) return false;
     if (index < 0 || (size_t)index >= da->len) return false;
-
+    
     memmove(&da->items[index],
             &da->items[index + 1],
             (da->len - (size_t)index - 1) * sizeof(char *));
-
+    
     da->len--;
     return true;
+}
+
+void da_init(DynamicArray *da) {
+    if (da == NULL) {
+        *da = (DynamicArray){0};
+    }
+    if (da->len>0 && da->items) {
+        da_free(da);
+        return;
+    }
+    da->items    = NULL;
+    da->len      = 0;
+    da->capacity = 0;
+    da->stack    = false;
 }
 
 void da_clear(DynamicArray *da) {
@@ -131,25 +203,27 @@ void da_clear(DynamicArray *da) {
     da->len = 0;
 }
 
-void da_filter(DynamicArray* da, FunctionStringPredicate pred, DynamicArray* result) {
-    if (!da || !pred || !result) {
+void da_filter(DynamicArray* src, DynamicArray* dest, FunctionStringPredicate pred) {
+    if (!src || !pred || !dest) {
         return;
     }
 
-    char** new_items = malloc(da->len * sizeof(char*));
+    char** new_items = malloc(src->len * sizeof(char*));
     if (!new_items) {
+        ERR("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
         return;
     }
 
     size_t count = 0;
-    for (size_t i = 0; i < da->len; i++) {
-        if (pred(da->items[i],i)) {
-            new_items[count] = sdup(da->items[i]);
+    for (size_t i = 0; i < src->len; i++) {
+        if (pred(src->items[i],i)) {
+            new_items[count] = sdup(src->items[i]);
             if (!new_items[count]) {
                 for (size_t j = 0; j < count; j++) {
                     free(new_items[j]);
                 }
                 free(new_items);
+                ERR("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
                 return;
             }
             count++;
@@ -157,50 +231,157 @@ void da_filter(DynamicArray* da, FunctionStringPredicate pred, DynamicArray* res
     }
 
     // free existing result contents before overwriting
-    if (result->items) {
-        for (size_t i = 0; i < result->len; i++) {
-            free(result->items[i]);
+    if (dest->items) {
+        for (size_t i = 0; i < dest->len; i++) {
+            free(dest->items[i]);
         }
-        free(result->items);
+        free(dest->items);
     }
 
-    result->items    = new_items;
-    result->len      = count;
-    result->capacity = da->len;  // allocated da->len, used count
-    result->stack    = da->stack;
+    dest->items    = new_items;
+    dest->len      = count;
+    dest->capacity = src->len;  // allocated da->len, used count
+    dest->stack    = src->stack;
 }
 
-void da_map(DynamicArray* da, FunctionStringToString func, DynamicArray* result) {
-    if (!da || !func || !result) {
+static size_t hset_hash(const char* s, size_t cap) {
+    size_t h = 14695981039346656037ULL;  // FNV-1a
+    while (*s) { h ^= (unsigned char)*s++; h *= 1099511628211ULL; }
+    return h % cap;
+}
+
+static bool hset_init(HashSet* hs, size_t cap) {
+    hs->slots    = calloc(cap, sizeof(char*));  // NULL == empty
+    hs->capacity = cap;
+    hs->count    = 0;
+    return hs->slots != NULL;
+}
+
+static bool hset_contains(HashSet* hs, const char* s) {
+    size_t i = hset_hash(s, hs->capacity);
+    while (hs->slots[i] != HSET_EMPTY) {
+        if (strcmp(hs->slots[i], s) == 0) return true;
+        i = (i + 1) % hs->capacity;  // linear probe
+    }
+    return false;
+}
+
+// returns false on alloc failure
+static bool hset_insert(HashSet* hs, const char* s) {
+    size_t i = hset_hash(s, hs->capacity);
+    while (hs->slots[i] != HSET_EMPTY) {
+        if (strcmp(hs->slots[i], s) == 0) return true;  // already present
+        i = (i + 1) % hs->capacity;
+    }
+    hs->slots[i] = (char*)s;  // borrowed — hset does NOT own the string
+    hs->count++;
+    return true;
+}
+
+static void hset_free(HashSet* hs) {
+    free(hs->slots);
+}
+
+// -- da_distinct --------------------------------------------------------------
+
+void da_distinct(DynamicArray* src, DynamicArray* dest) {
+    if (!src || !dest) return;
+    if (src->len == 0) {
+        dest->items    = NULL;
+        dest->len      = 0;
+        dest->capacity = 0;
+        dest->stack    = src->stack;
         return;
     }
 
-    char** new_items = malloc(da->len * sizeof(char*));
-    if (!new_items) {
-        return;
-    }
+    // size capacity so load factor stays under HSET_LOAD
+    size_t hcap = (size_t)(src->len / HSET_LOAD) + 1;
+    HashSet seen;
+    if (!hset_init(&seen, hcap)) return;
 
-    for (size_t i = 0; i < da->len; i++) {
-        new_items[i] = func(da->items[i],i);
-        if (!new_items[i]) {
-            for (size_t j = 0; j < i; j++) free(new_items[j]);
+    char** new_items = malloc(src->len * sizeof(char*));
+    if (!new_items) { hset_free(&seen); return; }
+
+    size_t count = 0;
+    for (size_t i = 0; i < src->len; i++) {
+        if (hset_contains(&seen, src->items[i])) continue;
+
+        new_items[count] = strdup(src->items[i]);
+        if (!new_items[count]) {
+            for (size_t j = 0; j < count; j++) free(new_items[j]);
             free(new_items);
+            hset_free(&seen);
+            return;
+        }
+
+        hset_insert(&seen, src->items[i]);  // borrow original, not the copy
+        count++;
+    }
+
+    hset_free(&seen);
+
+    // free existing dest contents before overwriting
+    if (dest->items) {
+        for (size_t i = 0; i < dest->len; i++) free(dest->items[i]);
+        free(dest->items);
+    }
+
+    dest->items    = new_items;
+    dest->len      = count;
+    dest->capacity = src->len;
+    dest->stack    = src->stack;
+}
+
+size_t da_count(DynamicArray* da, FunctionStringPredicate pred) {
+    if (!da || !pred || !da->items || da->len == 0) {
+        return 0;
+    }
+
+    size_t count = 0;
+    for (size_t i = 0; i < da->len; i++) {
+        if (pred(da->items[i],i)) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+void da_map(DynamicArray* src, DynamicArray* dest, FunctionStringToString func) {
+    if (!src || !func || !dest) {
+        return;
+    }
+
+    char** new_items = malloc(src->len * sizeof(char*));
+    if (!new_items) {
+        ERR("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
+        return;
+    }
+
+    for (size_t i = 0; i < src->len; i++) {
+        new_items[i] = func(src->items[i],i);
+        if (!new_items[i]) {
+            for (size_t j = 0; j < i; j++) {
+                free(new_items[j]);
+            }
+            free(new_items);
+            ERR("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
             return;
         }
     }
 
     // free existing result contents before overwriting
-    if (result->items) {
-        for (size_t i = 0; i < result->len; i++) {
-            free(result->items[i]);
+    if (dest->items) {
+        for (size_t i = 0; i < dest->len; i++) {
+            free(dest->items[i]);
         }
-        free(result->items);
+        free(dest->items);
     }
 
-    result->items    = new_items;
-    result->len      = da->len;
-    result->capacity = da->len;
-    result->stack    = da->stack;
+    dest->items    = new_items;
+    dest->len      = src->len;
+    dest->capacity = src->len;
+    dest->stack    = src->stack;
 }
 
 int cmp_strings(const void* a, const void* b) {
