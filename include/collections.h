@@ -59,6 +59,8 @@ typedef struct {
 typedef char* (*FunctionStringToString)(const char*, size_t index);
 typedef bool (*FunctionStringPredicate)(const char*, size_t index);
 
+uint64_t hash(const char* key);
+
 void map_init(Map* map);
 void map_set(Map* map, const char* key, const void* value);
 void* map_get(Map* map, const char* key);
@@ -115,45 +117,45 @@ static size_t next_prime(size_t min) {
 // -- wyhash (fastest modern non-crypto hash) ----------------------------------
 // https://github.com/wangyi-fudan/wyhash
 
-static inline uint64_t wymix(uint64_t a, uint64_t b) {
-    __uint128_t r = (__uint128_t)a * b;
-    return (uint64_t)(r >> 64) ^ (uint64_t)r;
-}
+// static inline uint64_t wymix(uint64_t a, uint64_t b) {
+//     __uint128_t r = (__uint128_t)a * b;
+//     return (uint64_t)(r >> 64) ^ (uint64_t)r;
+// }
 
-static uint64_t wyhash(const char* key) {
-    const uint8_t* p   = (const uint8_t*)key;
-    size_t         len = strlen(key);
-    uint64_t       h   = 0x9E3779B97F4A7C15ULL ^ len;
+// static uint64_t wyhash(const char* key) {
+//     const uint8_t* p   = (const uint8_t*)key;
+//     size_t         len = strlen(key);
+//     uint64_t       h   = 0x9E3779B97F4A7C15ULL ^ len;
 
-    while (len >= 8) {
-        uint64_t word;
-        memcpy(&word, p, 8);
-        h = wymix(h, word);
-        p += 8; len -= 8;
-    }
+//     while (len >= 8) {
+//         uint64_t word;
+//         memcpy(&word, p, 8);
+//         h = wymix(h, word);
+//         p += 8; len -= 8;
+//     }
 
-    uint64_t tail = 0;
-    switch (len) {
-        case 7: tail |= (uint64_t)p[6] << 48; // fallthrough
-        case 6: tail |= (uint64_t)p[5] << 40; // fallthrough
-        case 5: tail |= (uint64_t)p[4] << 32; // fallthrough
-        case 4: tail |= (uint64_t)p[3] << 24; // fallthrough
-        case 3: tail |= (uint64_t)p[2] << 16; // fallthrough
-        case 2: tail |= (uint64_t)p[1] <<  8; // fallthrough
-        case 1: tail |= (uint64_t)p[0];
-                h = wymix(h, tail);
-    }
+//     uint64_t tail = 0;
+//     switch (len) {
+//         case 7: tail |= (uint64_t)p[6] << 48; // fallthrough
+//         case 6: tail |= (uint64_t)p[5] << 40; // fallthrough
+//         case 5: tail |= (uint64_t)p[4] << 32; // fallthrough
+//         case 4: tail |= (uint64_t)p[3] << 24; // fallthrough
+//         case 3: tail |= (uint64_t)p[2] << 16; // fallthrough
+//         case 2: tail |= (uint64_t)p[1] <<  8; // fallthrough
+//         case 1: tail |= (uint64_t)p[0];
+//                 h = wymix(h, tail);
+//     }
 
-    return wymix(h, 0x60bee2bee120fc15ULL);
-}
+//     return wymix(h, 0x60bee2bee120fc15ULL);
+// }
 
 // -- tombstone sentinel -------------------------------------------------------
 
 static uint64_t djb2(const char* key) {
     unsigned long result = 5381;
-    int c;
-    while (c = *key++) {
-        result = ((result << 5) + result) + c;
+    const size_t l = strlen(key);    
+    for (size_t c=0;c<l;c++) {
+        result = ((result << 5) + result) + (unsigned long)key[c];
     }
     return result;
 }
@@ -172,7 +174,7 @@ static uint64_t djb2(const char* key) {
 //     return hash < 0 ? -hash : hash;
 // }
 
-static uint64_t hash(const char* key) {
+uint64_t hash(const char* key) {
     // return myhash(key);
     return djb2(key);
     // return wyhash(key);
@@ -310,7 +312,7 @@ char* da_dequeue(DynamicArray* da) {
 char* da_pop(DynamicArray* da) {
     if (da == NULL || da->items == NULL || da->len == 0 || !da->items[0]) return NULL;
     char* result = sdup(da->items[da->len-1]);
-    if (!da_remove(da,da->len-1)) {
+    if (!da_remove(da,(int)(da->len-1))) {
         wrn("%s: failed to pop an item from the list : %s",__FUNCTION__,strerror(errno));
         return NULL;
     }
@@ -465,11 +467,11 @@ void da_filter(DynamicArray* src, DynamicArray* dest, FunctionStringPredicate pr
     dest->stack    = src->stack;
 }
 
-static size_t hset_hash(const char* s, size_t cap) {
-    size_t h = 14695981039346656037ULL;  // FNV-1a
-    while (*s) { h ^= (unsigned char)*s++; h *= 1099511628211ULL; }
-    return h % cap;
-}
+// static size_t hset_hash(const char* s, size_t cap) {
+//     size_t h = 14695981039346656037ULL;  // FNV-1a
+//     while (*s) { h ^= (unsigned char)*s++; h *= 1099511628211ULL; }
+//     return h % cap;
+// }
 
 static bool hset_init(HashSet* hs, size_t cap) {
     hs->slots    = calloc(cap, sizeof(char*));  // NULL == empty
@@ -479,7 +481,8 @@ static bool hset_init(HashSet* hs, size_t cap) {
 }
 
 static bool hset_contains(HashSet* hs, const char* s) {
-    size_t i = hset_hash(s, hs->capacity);
+    // size_t i = hset_hash(s, hs->capacity);
+    size_t i = hash(s) % (hs->capacity);
     while (hs->slots[i] != HSET_EMPTY) {
         if (strcmp(hs->slots[i], s) == 0) return true;
         i = (i + 1) % hs->capacity;  // linear probe
@@ -489,7 +492,8 @@ static bool hset_contains(HashSet* hs, const char* s) {
 
 // returns false on alloc failure
 static bool hset_insert(HashSet* hs, const char* s) {
-    size_t i = hset_hash(s, hs->capacity);
+    // size_t i = hset_hash(s, hs->capacity);
+    size_t i = hash(s)%(hs->capacity);
     while (hs->slots[i] != HSET_EMPTY) {
         if (strcmp(hs->slots[i], s) == 0) return true;  // already present
         i = (i + 1) % hs->capacity;

@@ -8,14 +8,19 @@
 #include <ctype.h>
 
 #ifdef _WIN32
-#include <windows.h>
+  #define WIN32_LEAN_AND_MEAN
+  #include <windows.h>
+#elif defined(__APPLE__)
+  #include <mach/mach_time.h>
+#else
+  #include <time.h>  // POSIX clock_gettime
 #endif
 
 // with snprintf — needs a helper macro
 #define TMP_SPRINTF_SIZE 256
 #define tmp_sprintf(fmt, ...) __extension__({ \
     char _buf[TMP_SPRINTF_SIZE]; \
-    sprintf(_buf, fmt, ##__VA_ARGS__); \
+    sprintf(_buf, fmt  ,__VA_ARGS__); \
     strdup(_buf); \
 })
 
@@ -43,12 +48,12 @@
 #define B_WHITE "\033[47m"
 #define RESET   "\033[0m"     
 
-#define err(fmt,...) printf(ANSI_ERR" ERR: "RESET" "fmt"\n",##__VA_ARGS__)
-#define wrn(fmt,...) printf(ANSI_WRN" WRN: "RESET" "fmt"\n",##__VA_ARGS__)
-#define inf(fmt,...) printf(ANSI_INF" INF: "RESET" "fmt"\n",##__VA_ARGS__)
-#define dbg(fmt,...) printf(ANSI_DBG" DBG: "RESET" "fmt"\n",##__VA_ARGS__)
-#define trc(fmt,...) printf(ANSI_TRC" TRC: "RESET" "fmt"\n",##__VA_ARGS__)
-#define println(fmt,...) printf(RESET""fmt"\n",##__VA_ARGS__)
+#define err(fmt,...) printf(ANSI_ERR" ERR: "RESET" "fmt"\n" __VA_OPT__(,)__VA_ARGS__)
+#define wrn(fmt,...) printf(ANSI_WRN" WRN: "RESET" "fmt"\n" __VA_OPT__(,)__VA_ARGS__)
+#define inf(fmt,...) printf(ANSI_INF" INF: "RESET" "fmt"\n" __VA_OPT__(,)__VA_ARGS__)
+#define dbg(fmt,...) printf(ANSI_DBG" DBG: "RESET" "fmt"\n" __VA_OPT__(,)__VA_ARGS__)
+#define trc(fmt,...) printf(ANSI_TRC" TRC: "RESET" "fmt"\n" __VA_OPT__(,)__VA_ARGS__)
+#define println(fmt,...) printf(RESET""fmt"\n" __VA_OPT__(,)__VA_ARGS__)
 
 
 #define todo(s) do { printf(B_RED""F_WHITE" TODO: "RESET" %s:%d <%s> ["F_AMBER"%s"RESET"]\n", __FILE__, __LINE__,__FUNCTION__,s); exit(1); } while (0)
@@ -91,11 +96,13 @@ void sw_start(StopWatch* sw);
 void sw_stop(StopWatch* sw);
 
 void sb_init(StringBuilder* sb);
-void sb_append(StringBuilder* sb, const char* fmt,...);
-void sb_appendln(StringBuilder* sb, const char* fmt,...);
 void sb_to_sv_and_clear_sb(StringBuilder* sb, StringView* sv);
 void sb_set_length(StringBuilder* sb, size_t len);
+bool sb_push(StringBuilder* sb, char* s);
 void sb_free(StringBuilder* sb);
+
+#define sb_fpush(sb,fmt,...) sb_push(sb, tmp_sprintf(fmt __VA_OPT__(,)__VA_ARGS__))
+#define sb_fpushln(sb, fmt, ...) sb_push(sb, tmp_sprintf(fmt"\n" __VA_OPT__(,)__VA_ARGS__))
 
 void sv_free(StringView* sv);
 
@@ -112,14 +119,6 @@ bool is_cstr_ends_with(const char *hay, const char *needle);
 #include <stdint.h>
 #include <stddef.h>
 
-#ifdef _WIN32
-  #define WIN32_LEAN_AND_MEAN
-  #include <windows.h>
-#elif defined(__APPLE__)
-  #include <mach/mach_time.h>
-#else
-  #include <time.h>  // POSIX clock_gettime
-#endif
 
 
 
@@ -200,7 +199,7 @@ static bool sb_grow(StringBuilder* sb) {
 
 // -- core append (owns the formatted string) ----------------------------------
 
-static bool sb_push(StringBuilder* sb, char* s) {
+bool sb_push(StringBuilder* sb, char* s) {
     if (sb->len == sb->capacity && !sb_grow(sb)) { free(s); return false; }
     sb->items[sb->len++] = s;
     return true;
@@ -208,49 +207,6 @@ static bool sb_push(StringBuilder* sb, char* s) {
 
 // -- public API ---------------------------------------------------------------
 
-void sb_append(StringBuilder* sb, const char* fmt, ...) {
-    if (!sb) {
-        wrn("%s: attempt to append a string to a string builder that is NULL",__FUNCTION__);
-        return;
-    }
-    va_list ap;
-    va_start(ap, fmt);
-    int n = vsnprintf(NULL, 0, fmt, ap);   // measure
-    va_end(ap);
-    if (n < 0) return;
-
-    char* s = malloc(n + 1);
-    if (!s) return;
-
-    va_start(ap, fmt);
-    vsnprintf(s, n + 1, fmt, ap);          // write
-    va_end(ap);
-
-    sb_push(sb, s);
-}
-
-void sb_appendln(StringBuilder* sb, const char* fmt, ...) {
-    if (!sb) {
-        wrn("%s: attempt to append a line to a string builder that is NULL",__FUNCTION__);
-        return;
-    }
-    va_list ap;
-    va_start(ap, fmt);
-    int n = vsnprintf(NULL, 0, fmt, ap);
-    va_end(ap);
-    if (n < 0) return;
-
-    char* s = malloc(n + 2);               // +2: '\n' + '\0'
-    if (!s) return;
-
-    va_start(ap, fmt);
-    vsnprintf(s, n + 1, fmt, ap);
-    va_end(ap);
-    s[n]   = '\n';
-    s[n+1] = '\0';
-
-    sb_push(sb, s);
-}
 
 // -- flatten to StringView, clear sb ------------------------------------------
 

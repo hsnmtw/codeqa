@@ -194,7 +194,7 @@ TEST(t_map__read_entire_file) {
 
 TEST(t_map__read_stream_file) {
     size_t mss = 0;
-    const size_t iterations = 31;
+    const size_t iterations = 50;
     
     Map map;
     map_init(&map);
@@ -207,15 +207,15 @@ TEST(t_map__read_stream_file) {
                 EXPECT(false);
             }
 
-            char word[256];
+            unsigned char word[256];
             size_t word_len = 0;
             unsigned char buffer[1] = {0};
             while(fread(buffer,1,1,f) > 0) {
                 if (isspace(buffer[0])) {
                     if (word_len > 0) {
                         word[word_len] = '\0';
-                        size_t count = (size_t)map_get(&map, word);
-                        map_set(&map, word, (void*)(count + 1));
+                        size_t count = (size_t)map_get(&map, (const char*)word);
+                        map_set(&map, (const char*)word, (void*)(count + 1));
                         word_len = 0;
                     }
                     continue;
@@ -226,8 +226,8 @@ TEST(t_map__read_stream_file) {
             // flush last word if file doesn't end with whitespace
             if (word_len > 0) {
                 word[word_len] = '\0';
-                size_t count = (size_t)map_get(&map, word);
-                map_set(&map, word, (void*)(count + 1));
+                size_t count = (size_t)map_get(&map, (const char*)word);
+                map_set(&map, (const char*)word, (void*)(count + 1));
             }
         
         sw_stop(&sw);
@@ -260,7 +260,7 @@ TEST(t_map__read_stream_file) {
     EXPECT_( 15544*iterations , (size_t)map_get(&map, "of" ));
     EXPECT_( 23242*iterations , (size_t)map_get(&map, "the"));
 
-    EXPECT( 250 > mss/iterations );
+    EXPECT( 195 > mss/iterations );
 
     println("\n\n[%zu]\n\n", mss/iterations ); 
 
@@ -269,7 +269,7 @@ TEST(t_map__read_stream_file) {
 
 // -- runner -------------------------------------------------------------------
 
-int test_map() {
+int test_map(void) {
     puts("Map tests");
     puts("=========");
 
