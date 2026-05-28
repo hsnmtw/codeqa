@@ -1,7 +1,7 @@
-#ifndef DA_H_
-#define DA_H_
+#ifndef COLLECTIONS_H_
+#define COLLECTIONS_H_
 
-#define COMMON_IMPL
+// #define COMMON_IMPL
 #include "common.h"
 #include <stdbool.h>
 #include <errno.h>
@@ -21,6 +21,19 @@ typedef struct {
     size_t capacity;
     bool   stack;
 } DynamicArray;
+
+typedef struct {
+    char* key;
+    void* value;
+    bool  taken;
+} Pair;
+
+typedef struct {
+    Pair* items;
+    size_t len;
+    size_t capacity;
+} Map;
+
 
 #define DA_INITIAL_CAPACITY 8
 #define DA_GROWTH_FACTOR    2
@@ -46,6 +59,12 @@ typedef struct {
 typedef char* (*FunctionStringToString)(const char*, size_t index);
 typedef bool (*FunctionStringPredicate)(const char*, size_t index);
 
+void map_init(Map* map);
+void map_set(Map* map, const char* key, const void* value);
+void* map_get(Map* map, const char* key);
+void map_free(Map* map);
+void map_keys(Map* map,DynamicArray *da);
+
 void da_map(DynamicArray* src, DynamicArray* dest, FunctionStringToString func);
 void da_filter(DynamicArray* src, DynamicArray* dest, FunctionStringPredicate func);
 void da_distinct(DynamicArray* src, DynamicArray* dest);
@@ -60,37 +79,203 @@ void da_sort(DynamicArray* da);
 char* da_pop(DynamicArray* da);
 void da_push(DynamicArray* da, const char* value);
 void da_queue(DynamicArray* da, const char* value);
+char* da_dequeue(DynamicArray* da);
 
 
-#ifdef DA_IMPL
+#ifdef COLLECTIONS_IMPL
+
+// -------- Map ------------------------ 
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+// -- primes for capacity growth -----------------------------------------------
+
+static const size_t PRIMES[] = {
+    11, 23, 47, 97, 197, 397, 797, 1597, 3203, 6421, 12853, 25717, 51437,
+    102877, 205759, 411527, 823117, 1646237, 3292489, 6584983, 13169977
+};
+static const size_t PRIMES_LEN = sizeof(PRIMES) / sizeof(PRIMES[0]);
+static const double LOAD_FACTOR = 0.65;
+
+static size_t next_prime(size_t min) {
+    for (size_t i = 0; i < PRIMES_LEN; i++)
+        if (PRIMES[i] > min) return PRIMES[i];
+    return min * 2 + 1;  // fallback for very large maps
+}
+
+// -- wyhash (fastest modern non-crypto hash) ----------------------------------
+// https://github.com/wangyi-fudan/wyhash
+
+static inline uint64_t wymix(uint64_t a, uint64_t b) {
+    __uint128_t r = (__uint128_t)a * b;
+    return (uint64_t)(r >> 64) ^ (uint64_t)r;
+}
+
+static uint64_t wyhash(const char* key) {
+    const uint8_t* p   = (const uint8_t*)key;
+    size_t         len = strlen(key);
+    uint64_t       h   = 0x9E3779B97F4A7C15ULL ^ len;
+
+    while (len >= 8) {
+        uint64_t word;
+        memcpy(&word, p, 8);
+        h = wymix(h, word);
+        p += 8; len -= 8;
+    }
+
+    uint64_t tail = 0;
+    switch (len) {
+        case 7: tail |= (uint64_t)p[6] << 48; // fallthrough
+        case 6: tail |= (uint64_t)p[5] << 40; // fallthrough
+        case 5: tail |= (uint64_t)p[4] << 32; // fallthrough
+        case 4: tail |= (uint64_t)p[3] << 24; // fallthrough
+        case 3: tail |= (uint64_t)p[2] << 16; // fallthrough
+        case 2: tail |= (uint64_t)p[1] <<  8; // fallthrough
+        case 1: tail |= (uint64_t)p[0];
+                h = wymix(h, tail);
+    }
+
+    return wymix(h, 0x60bee2bee120fc15ULL);
+}
+
+// -- tombstone sentinel -------------------------------------------------------
+
+#define TOMB ((char*)-1)   // deleted slot marker
+#define is_empty(p)  ((p).key == NULL)
+#define is_tomb(p)   ((p).key == TOMB)
+#define is_live(p)   ((p).key != NULL && (p).key != TOMB && p.taken)
+
+// -- internal probe -----------------------------------------------------------
+
+// double hashing: step = 1 + (hash / cap) % (cap - 1)
+// eliminates primary clustering without a second hash function
+static size_t probe_step(uint64_t hash, size_t cap) {
+    return 1 + (hash / cap) % (cap - 1);
+}
+
+static size_t find_slot(Pair* items, size_t cap, const char* key, uint64_t hash) {
+    size_t i    = hash % cap;
+    size_t step = probe_step(hash, cap);
+    size_t first_tomb = SIZE_MAX;
+
+    while (true) {
+        if (is_empty(items[i])) {
+            return (first_tomb != SIZE_MAX) ? first_tomb : i;
+        }
+        if (is_tomb(items[i])) {
+            if (first_tomb == SIZE_MAX) first_tomb = i;
+        } else if (strcmp(items[i].key, key) == 0) {
+            return i;
+        }
+        i = (i + step) % cap;
+    }
+}
+
+// -- rehash -------------------------------------------------------------------
+
+static bool rehash(Map* map, size_t new_cap) {
+    Pair* new_items = calloc(new_cap, sizeof(Pair));
+    if (!new_items) return false;
+
+    for (size_t i = 0; i < map->capacity; i++) {
+        if (!is_live(map->items[i])) continue;
+        uint64_t h    = wyhash(map->items[i].key);
+        size_t   slot = find_slot(new_items, new_cap, map->items[i].key, h);
+        new_items[slot] = map->items[i];  // key/value ownership transfers
+    }
+
+    free(map->items);
+    map->items    = new_items;
+    map->capacity = new_cap;
+    return true;
+}
+
+// -- public API ---------------------------------------------------------------
+
+void map_keys(Map* map,DynamicArray *da) {
+    if (!map || !da) return;
+    da_init(da);
+    for(size_t i=0;i<map->capacity;++i) {
+        if (map->items[i].taken) {
+            da_push(da, sdup(map->items[i].key));
+        }
+    }
+}
+
+void map_init(Map* map) {
+    map->len      = 0;
+    map->capacity = PRIMES[0];  // start at 11
+    map->items    = calloc(map->capacity, sizeof(Pair));
+}
+
+void map_set(Map* map, const char* key, const void* value) {
+    if (!map->items) return;
+
+    // grow before insert to keep load factor healthy
+    if ((double)(map->len + 1) / map->capacity > LOAD_FACTOR) {
+        size_t new_cap = next_prime(map->capacity);
+        if (!rehash(map, new_cap)) return;
+    }
+
+    uint64_t h    = wyhash(key);
+    size_t   slot = find_slot(map->items, map->capacity, key, h);
+
+    if (is_live(map->items[slot])) {
+        // update existing key — free old value if owned, here we just overwrite
+        map->items[slot].value = (void*)value;
+        return;
+    }
+
+    // new slot (empty or tombstone)
+    map->items[slot].key   = strdup(key);
+    map->items[slot].value = (void*)value;
+    map->items[slot].taken = true;
+    map->len++;
+}
+
+void* map_get(Map* map, const char* key) {
+    if (!map->items || map->len == 0) return NULL;
+
+    uint64_t h    = wyhash(key);
+    size_t   slot = find_slot(map->items, map->capacity, key, h);
+
+    return is_live(map->items[slot]) ? map->items[slot].value : NULL;
+}
+
+void map_free(Map* map) {
+    if (!map->items) return;
+    for (size_t i = 0; i < map->capacity; i++)
+        if (is_live(map->items[i])) free(map->items[i].key);
+    free(map->items);
+    map->items    = NULL;
+    map->len      = 0;
+    map->capacity = 0;
+}
+// -------- Map ------------------------
 
 void da_queue(DynamicArray* da, const char* value) {
     if (da == NULL) return;
+    //push an item normally
+    da_push(da,value);
+}
 
-    if (da->len >= da->capacity) {
-        // extend the array by one item
-        da_push(da,"");
-        // move elements of array one item to right
-        // void *memmove(void dest[.n], const void src[.n], size_t n);
-        memmove(&da->items[1], // char* dest
-                &da->items[0], // char* src
-                (da->len-1) * sizeof(char *));        
-    } else {
-        // move elements of array one item to right
-        memmove(&da->items[1],
-                &da->items[0],
-                (da->len++) * sizeof(char *));
+char* da_dequeue(DynamicArray* da) {
+    if (da == NULL || !da->items || da->len == 0) return NULL;
+    // pop the item at top, and shift array to left
+    char* value = sdup(da->items[0]);
+    if (!da_remove(da,0)) {
+        wrn("%s: failed to remove item from array", __FUNCTION__);
     }
-
-    //place the value at top of the list
-    da->items[0] = sdup(value);
+    return value;
 }
 
 char* da_pop(DynamicArray* da) {
     if (da == NULL || da->items == NULL || da->len == 0 || !da->items[0]) return NULL;
-    char* result = sdup(da->items[0]);
-    if (!da_remove(da,0)) {
-        WRN("%s: failed to pop an item from the list : %s",__FUNCTION__,strerror(errno));
+    char* result = sdup(da->items[da->len-1]);
+    if (!da_remove(da,da->len-1)) {
+        wrn("%s: failed to pop an item from the list : %s",__FUNCTION__,strerror(errno));
         return NULL;
     }
     return result;
@@ -126,7 +311,7 @@ void da_push(DynamicArray *da, const char *value) {
             // first grow from stack — must copy to heap manually
             new_items = malloc(new_cap * sizeof(char *));
             if (!new_items) { 
-                ERR("%s: out of memory\n", __FUNCTION__);
+                err("%s: out of memory\n", __FUNCTION__);
                 return;
             }
             memcpy(new_items, da->items, da->len * sizeof(char *));
@@ -134,7 +319,7 @@ void da_push(DynamicArray *da, const char *value) {
             da->stack = false;   // now heap-owned, safe to realloc from now on
             new_items = realloc(da->items, new_cap * sizeof(char *));
             if (!new_items) { 
-                ERR("%s: out of memory\n", __FUNCTION__);
+                err("%s: out of memory\n", __FUNCTION__);
                 return;
             }
         }
@@ -210,7 +395,7 @@ void da_filter(DynamicArray* src, DynamicArray* dest, FunctionStringPredicate pr
 
     char** new_items = malloc(src->len * sizeof(char*));
     if (!new_items) {
-        ERR("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
+        err("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
         return;
     }
 
@@ -223,7 +408,7 @@ void da_filter(DynamicArray* src, DynamicArray* dest, FunctionStringPredicate pr
                     free(new_items[j]);
                 }
                 free(new_items);
-                ERR("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
+                err("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
                 return;
             }
             count++;
@@ -354,7 +539,7 @@ void da_map(DynamicArray* src, DynamicArray* dest, FunctionStringToString func) 
 
     char** new_items = malloc(src->len * sizeof(char*));
     if (!new_items) {
-        ERR("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
+        err("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
         return;
     }
 
@@ -365,7 +550,7 @@ void da_map(DynamicArray* src, DynamicArray* dest, FunctionStringToString func) 
                 free(new_items[j]);
             }
             free(new_items);
-            ERR("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
+            err("%s : failed to allocate some memory to perform filter on array ! : %s", __FUNCTION__, strerror(errno));
             return;
         }
     }
@@ -397,6 +582,6 @@ void da_sort(DynamicArray* da) {
     }
     qsort(da->items, da->len, sizeof(char*), cmp_strings);
 }
-#endif//DA_IMPL
+#endif//COLLECTIONS_IMPL
 
-#endif//DA_H_
+#endif//COLLECTIONS_H_

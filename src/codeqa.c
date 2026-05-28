@@ -3,8 +3,8 @@
 
 #define COMMON_IMPL
 #include "common.h"
-#define DA_IMPL
-#include "dynamic_array.h"
+#define COLLECTIONS_IMPL
+#include "collections.h"
 #define IO_IMPL
 #include "io.h"
 
@@ -27,7 +27,7 @@ void parse_arguments(Options* options, int argc, char** argv) {
         if (is_cstr_starts_with(argv[i],"-f")) {
             i++;
             if (i >= argc) {
-                ERR("you need to provide path of a file/folder after argument -f");
+                err("you need to provide path of a file/folder after argument -f");
                 usage();
                 exit(1);
             }
@@ -59,28 +59,31 @@ void parse_arguments(Options* options, int argc, char** argv) {
 
 
 void usage(void) {
-    printf("   "F_AMBER"# --------------------------------------------------------\n"RESET);
-    printf("   #  "B_GREEN"          CODE/QA                                      "RESET"\n");
-    printf("   "F_AMBER"# --------------------------------------------------------\n\n");
-    printf("   "F_CYAN"# usage: scan a file or a directory (recursively if needed)\n\n");
-    printf("   "F_GREEN"$ ./codeqa (-f)ile/older (-p) *.* (-r)\n");
-    printf("   "F_CYAN"            -f"RESET"   file or folder path\n");
-    printf("   "F_CYAN"            -p"RESET"   pattern\n");
-    printf("   "F_CYAN"            -r"RESET"   recursive\n");
-    printf("   "RESET"\n");
+    println("   "F_AMBER"# --------------------------------------------------------\n"RESET);
+    println("   #  "B_GREEN"          CODE/QA                                      "RESET);
+    println("   "F_AMBER"# --------------------------------------------------------\n");
+    println("   "F_CYAN"# usage: scan a file or a directory (recursively if needed)\n");
+    println("   "F_GREEN"$ ./codeqa (-f)ile/older (-p) *.* (-r)");
+    println("   "F_CYAN"            -f"RESET"   file or folder path");
+    println("   "F_CYAN"            -p"RESET"   pattern");
+    println("   "F_CYAN"            -r"RESET"   recursive");
+    println("   "RESET);
 }
 
 
 void print_options(Options* options) {
-    printf(" [%*s] = %s\n", 15, "file", options->file);
-    printf(" [%*s] = %s\n", 15, "directory", options->directory);
-    printf(" [%*s] = %s\n", 15, "pattern", options->pattern);
-    printf(" [%*s] = %s\n", 15, "is_recursive", options->is_recursive ? "true" : "false");
+    println(" [%*s] = %s", 15, "file", options->file);
+    println(" [%*s] = %s", 15, "directory", options->directory);
+    println(" [%*s] = %s", 15, "pattern", options->pattern);
+    println(" [%*s] = %s", 15, "is_recursive", options->is_recursive ? "true" : "false");
 }
 
 
 
 bool even(const char* _, size_t i) { return i % 2 == 0; }
+
+#include "../tests/test_collections.c"
+#include "../tests/test_sb_sv.c"
 
 int main(int argc, char** argv) {
     unused(argc);
@@ -91,15 +94,20 @@ int main(int argc, char** argv) {
 
     da_distinct(&da, &unique);
 
-    DBG("------------------------------- da");
-    INF("count = %zu", da.len);
-    DBG("------------------------------- unique");
-    INF("count = %zu", unique.len);
+    dbg("------------------------------- da");
+    inf("count = %zu", da.len);
+    dbg("------------------------------- unique");
+    inf("count = %zu", unique.len);
     
-    WRN("");
-    DBG("");
-    TRC("");
+    wrn("");
+    dbg("");
+    trc("");
 
-    ERR("------------------------ TESTING ERROR COLORS\nExit normally");
+    test_map();
+    test_sb_sv();
+    printf("\n\n  [ UNIT TESTS ] %d passed, %d failed\n\n", passed, failed);
+
+
+    err("------------------------ TESTING ERROR COLORS\nExit normally");
     return 0;
 }

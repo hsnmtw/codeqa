@@ -1,6 +1,7 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
@@ -8,7 +9,6 @@
 
 
 // with snprintf — needs a helper macro
-//snprintf(_buf, TMP_SPRINTF_SIZE, fmt, ##__VA_ARGS__); 
 #define TMP_SPRINTF_SIZE 256
 #define tmp_sprintf(fmt, ...) __extension__({ \
     char _buf[TMP_SPRINTF_SIZE]; \
@@ -40,30 +40,189 @@
 #define B_WHITE "\033[47m"
 #define RESET   "\033[0m"     
 
+#define err(fmt,...) printf(ANSI_ERR" ERR: "RESET" "fmt"\n",##__VA_ARGS__)
+#define wrn(fmt,...) printf(ANSI_WRN" WRN: "RESET" "fmt"\n",##__VA_ARGS__)
+#define inf(fmt,...) printf(ANSI_INF" INF: "RESET" "fmt"\n",##__VA_ARGS__)
+#define dbg(fmt,...) printf(ANSI_DBG" DBG: "RESET" "fmt"\n",##__VA_ARGS__)
+#define trc(fmt,...) printf(ANSI_TRC" TRC: "RESET" "fmt"\n",##__VA_ARGS__)
+#define println(fmt,...) printf(RESET""fmt"\n",##__VA_ARGS__)
+
+
 #define todo(s) do { printf(B_RED""F_WHITE" TODO: "RESET" %s:%d <%s> ["F_AMBER"%s"RESET"]\n", __FILE__, __LINE__,__FUNCTION__,s); exit(1); } while (0)
 #define unused(x) (void)x
+
+typedef enum {
+    SV_STACK = 0, // points into a stack buffer, don't free
+    SV_OWNED,     // heap allocated, we free it
+    SV_BORROWED,  // slice into someone else's buffer, don't touch
+} SVKind;
 
 typedef struct {
     char* buffer;
     size_t len;
+    SVKind kind;
 } StringView;
 
-#define ERR(fmt,...) printf(ANSI_ERR" ERR: "RESET" "fmt"\n",##__VA_ARGS__)
-#define WRN(fmt,...) printf(ANSI_WRN" WRN: "RESET" "fmt"\n",##__VA_ARGS__)
-#define INF(fmt,...) printf(ANSI_INF" INF: "RESET" "fmt"\n",##__VA_ARGS__)
-#define DBG(fmt,...) printf(ANSI_DBG" DBG: "RESET" "fmt"\n",##__VA_ARGS__)
-#define TRC(fmt,...) printf(ANSI_TRC" TRC: "RESET" "fmt"\n",##__VA_ARGS__)
+typedef struct {
+    char** items;
+    size_t len;
+    size_t capacity;
+} StringBuilder;
 
+void sb_init(StringBuilder* sb);
+void sb_append(StringBuilder* sb, const char* fmt,...);
+void sb_appendln(StringBuilder* sb, const char* fmt,...);
+void sb_to_sv_and_clear_sb(StringBuilder* sb, StringView* sv);
+void sb_set_length(StringBuilder* sb, size_t len);
+void sb_free(StringBuilder* sb);
+
+void sv_free(StringView* sv);
 
 bool is_cstr_starts_with(const char *hay, const char *needle);
 bool is_cstr_starts_with_i(const char *hay, const char *needle);
 bool is_cstr_ends_with(const char *hay, const char *needle);
 // bool is_cstr_contain(const char *hay, const char *needle);
 
+#define SB_INIT_CAP 16
 
 #ifdef COMMON_IMPL
 
 
+// -- init / free --------------------------------------------------------------
+
+void sb_init(StringBuilder* sb) {
+    sb->items    = malloc(SB_INIT_CAP * sizeof(char*));
+    sb->len      = 0;
+    sb->capacity = sb->items ? SB_INIT_CAP : 0;
+}
+
+void sb_free(StringBuilder* sb) {
+    for (size_t i = 0; i < sb->len; i++) free(sb->items[i]);
+    free(sb->items);
+    sb->items    = NULL;
+    sb->len      = 0;
+    sb->capacity = 0;
+}
+
+// -- grow slot array ----------------------------------------------------------
+
+static bool sb_grow(StringBuilder* sb) {
+    size_t new_cap = sb->capacity * 2;
+    char** grown   = realloc(sb->items, new_cap * sizeof(char*));
+    if (!grown) return false;
+    sb->items    = grown;
+    sb->capacity = new_cap;
+    return true;
+}
+
+// -- core append (owns the formatted string) ----------------------------------
+
+static bool sb_push(StringBuilder* sb, char* s) {
+    if (sb->len == sb->capacity && !sb_grow(sb)) { free(s); return false; }
+    sb->items[sb->len++] = s;
+    return true;
+}
+
+// -- public API ---------------------------------------------------------------
+
+void sb_append(StringBuilder* sb, const char* fmt, ...) {
+    if (!sb) {
+        wrn("%s: attempt to append a string to a string builder that is NULL",__FUNCTION__);
+        return;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(NULL, 0, fmt, ap);   // measure
+    va_end(ap);
+    if (n < 0) return;
+
+    char* s = malloc(n + 1);
+    if (!s) return;
+
+    va_start(ap, fmt);
+    vsnprintf(s, n + 1, fmt, ap);          // write
+    va_end(ap);
+
+    sb_push(sb, s);
+}
+
+void sb_appendln(StringBuilder* sb, const char* fmt, ...) {
+    if (!sb) {
+        wrn("%s: attempt to append a line to a string builder that is NULL",__FUNCTION__);
+        return;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if (n < 0) return;
+
+    char* s = malloc(n + 2);               // +2: '\n' + '\0'
+    if (!s) return;
+
+    va_start(ap, fmt);
+    vsnprintf(s, n + 1, fmt, ap);
+    va_end(ap);
+    s[n]   = '\n';
+    s[n+1] = '\0';
+
+    sb_push(sb, s);
+}
+
+// -- flatten to StringView, clear sb ------------------------------------------
+
+void sb_to_sv_and_clear_sb(StringBuilder* sb, StringView* sv) {
+    if (!sb) {
+        wrn("%s: attempt to convert to string view from a string builder that is NULL",__FUNCTION__);
+        return;
+    }
+    if (!sv) {
+        wrn("%s: target string view is NULL",__FUNCTION__);
+        return;
+    }
+    // measure total length
+    size_t total = 0;
+    for (size_t i = 0; i < sb->len; i++) total += strlen(sb->items[i]);
+
+    char* buf = malloc(total + 1);
+    if (!buf) { sv->buffer = NULL; sv->len = 0; return; }
+
+    // single-pass memcpy join — no strlen called twice
+    char* cur = buf;
+    for (size_t i = 0; i < sb->len; i++) {
+        size_t chunk = strlen(sb->items[i]);
+        memcpy(cur, sb->items[i], chunk);
+        cur += chunk;
+    }
+    *cur = '\0';
+
+    sv->buffer = buf;
+    sv->len    = total;
+
+    sb_free(sb);
+    sb_init(sb);   // ready for reuse
+}
+
+// -- truncate without realloc -------------------------------------------------
+
+void sb_set_length(StringBuilder* sb, size_t len) {
+    if (!sb) {
+        wrn("%s: attempt to set length %zu on a string builder that is NULL",__FUNCTION__,len);
+        return;
+    }
+    size_t total = 0;
+    for (size_t i = 0; i < sb->len; i++) {
+        size_t chunk = strlen(sb->items[i]);
+        if (total + chunk >= len) {
+            sb->items[i][len - total] = '\0';   // truncate this chunk
+            for (size_t j = i + 1; j < sb->len; j++) free(sb->items[j]);
+            sb->len = i + 1;
+            return;
+        }
+        total += chunk;
+    }
+    // len >= current total: no-op
+}
 
 bool is_cstr_starts_with(const char *hay, const char *needle) {
     if (hay == NULL || needle == NULL) return false;
@@ -100,6 +259,49 @@ bool is_cstr_contains(const char *hay, const char *needle) {
     return strstr(hay, needle) != NULL;
 }
 
+void sv_realloc(StringView* sv, size_t length) {
+    if (!sv) return;
+
+    switch (sv->kind) {
+
+        case SV_OWNED: {
+            char* resized = realloc((char*)sv->buffer, length + 1);
+            if (!resized) return;
+            if (length > sv->len)
+                memset(resized + sv->len, 0, length - sv->len + 1);  // zero new region
+            resized[length] = '\0';
+            sv->buffer = resized;
+            sv->len    = length;
+        }
+        break;
+
+        case SV_BORROWED:
+        case SV_STACK: {
+            // can't realloc a buffer we don't own — copy it first
+            char* heap = malloc(length + 1);
+            if (!heap) return;
+            size_t copy_len = length < sv->len ? length : sv->len;
+            memcpy(heap, sv->buffer, copy_len);
+            if (length > sv->len)
+                memset(heap + sv->len, 0, length - sv->len + 1);  // zero new region
+            heap[length] = '\0';
+            sv->buffer = heap;
+            sv->len    = length;
+            sv->kind   = SV_OWNED;  // promoted — we now own the new heap copy
+        }
+        break;
+        default: 
+            err("UNREACHABLE");
+            break;
+    }
+}
+
+void sv_free(StringView* sv) {
+    if (!sv || !sv->buffer || !sv->kind) return;
+    free(sv->buffer);
+    sv->buffer = NULL;
+    sv->len    = 0;
+}
 
 
 #endif//COMMON_IMPL
