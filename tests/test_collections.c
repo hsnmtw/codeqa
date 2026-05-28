@@ -147,7 +147,7 @@ TEST(t_map__free_reuse) {
     map_free(&m);
 }
 
-TEST(t_map__file) {
+TEST(t_map__read_entire_file) {
     StringView sv = {0};
     read_entire_file("./data/long-text.txt",&sv);
     //tokenize the text into words
@@ -192,6 +192,81 @@ TEST(t_map__file) {
     map_free(&map);
 }
 
+TEST(t_map__read_stream_file) {
+    size_t mss = 0;
+    const size_t iterations = 33;
+    
+    Map map;
+    map_init(&map);
+    for(size_t it = 0; it<iterations; it++){
+        StopWatch sw = {0};
+        sw_start(&sw);
+        
+            FILE* f = fopen("./data/other.txt","rb");
+            if (!f) {
+                EXPECT(false);
+            }
+
+            char word[256];
+            size_t word_len = 0;
+            unsigned char buffer[1] = {0};
+            while(fread(buffer,1,1,f) > 0) {
+                if (isspace(buffer[0])) {
+                    if (word_len > 0) {
+                        word[word_len] = '\0';
+                        size_t count = (size_t)map_get(&map, word);
+                        map_set(&map, word, (void*)(count + 1));
+                        word_len = 0;
+                    }
+                    continue;
+                }
+                if (word_len < sizeof(word) - 1)
+                    word[word_len++] = buffer[0];
+            }
+            // flush last word if file doesn't end with whitespace
+            if (word_len > 0) {
+                word[word_len] = '\0';
+                size_t count = (size_t)map_get(&map, word);
+                map_set(&map, word, (void*)(count + 1));
+            }
+        
+        sw_stop(&sw);
+        
+        mss += sw.ms;
+        sw.ms = 0;
+        fclose(f);
+
+    }
+
+
+    DynamicArray keys = {0};
+    map_keys(&map,&keys);
+    // println("");
+    // for(size_t i=0;i<keys.len;++i){
+    //     size_t count = (size_t) map_get(&map,keys.items[i]);
+    //     inf("%5zu  [%s]", count, keys.items[i]);
+    // }
+    // println("");
+
+    // EXPECT_INT(2, map.len);
+    // EXPECT_INT(2, keys.len);
+    // EXPECT_INT(5, (size_t)map_get(&map, keys.items[0]));
+
+    EXPECT_( 1247*iterations , (size_t)map_get(&map, "in" ));
+    EXPECT_( 1155*iterations , (size_t)map_get(&map, "The"));
+    EXPECT_( 1980*iterations , (size_t)map_get(&map, "a"  ));
+    EXPECT_( 3319*iterations , (size_t)map_get(&map, "to" ));
+    EXPECT_( 2078*iterations , (size_t)map_get(&map, "and"));
+    EXPECT_( 2374*iterations , (size_t)map_get(&map, "of" ));
+    EXPECT_( 6860*iterations , (size_t)map_get(&map, "the"));
+
+    EXPECT( 50 > mss/iterations );
+
+    println("\n\n[%zu]\n\n", mss/iterations ); 
+
+    map_free(&map);
+}
+
 // -- runner -------------------------------------------------------------------
 
 int test_map() {
@@ -210,7 +285,8 @@ int test_map() {
     RUN(t_map__collision_keys);
     RUN(t_map__null_value);
     RUN(t_map__free_reuse);
-    RUN(t_map__file);
+    RUN(t_map__read_entire_file);
+    RUN(t_map__read_stream_file);
     printf("\n=========================================================");
     return failed ? 1 : 0;
 }

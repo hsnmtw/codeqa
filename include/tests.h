@@ -15,6 +15,12 @@
                     failed++; }                                                   \
     } while(0)
 
+    #define EXPECT_(e,a) do {                                                     \
+        if (e == a) { printf(ANSI_INF" PASS "RESET" "); passed++;                    \
+        } else    { printf(ANSI_ERR" FAIL (expected: %zu, actual: %zu) "RESET" (%s:%d)\n",e,a, __FILE__, __LINE__);\
+                    failed++; }                                                   \
+    } while(0)
+
     #define EXPECT_STR(a, b) EXPECT((a) && (b) && strcmp((a),(b)) == 0)
     #define EXPECT_NULL(p)   EXPECT((p) == NULL)
     #define EXPECT_INT(a, b) EXPECT((a) == (b))

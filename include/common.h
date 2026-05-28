@@ -7,6 +7,9 @@
 #include <stdbool.h>
 #include <ctype.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 // with snprintf — needs a helper macro
 #define TMP_SPRINTF_SIZE 256
@@ -69,6 +72,24 @@ typedef struct {
     size_t capacity;
 } StringBuilder;
 
+typedef struct {
+    bool   started;
+    size_t ms;
+
+#ifdef _WIN32
+    LARGE_INTEGER freq;
+    LARGE_INTEGER start;
+#elif defined(__APPLE__)
+    uint64_t                  start;
+    mach_timebase_info_data_t timebase;
+#else
+    struct timespec start;
+#endif
+} StopWatch;
+
+void sw_start(StopWatch* sw);
+void sw_stop(StopWatch* sw);
+
 void sb_init(StringBuilder* sb);
 void sb_append(StringBuilder* sb, const char* fmt,...);
 void sb_appendln(StringBuilder* sb, const char* fmt,...);
@@ -87,6 +108,68 @@ bool is_cstr_ends_with(const char *hay, const char *needle);
 
 #ifdef COMMON_IMPL
 
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+
+#ifdef _WIN32
+  #define WIN32_LEAN_AND_MEAN
+  #include <windows.h>
+#elif defined(__APPLE__)
+  #include <mach/mach_time.h>
+#else
+  #include <time.h>  // POSIX clock_gettime
+#endif
+
+
+
+// -- platform now() -----------------------------------------------------------
+
+static size_t sw_elapsed_ms(StopWatch* sw) {
+#ifdef _WIN32
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return (size_t)((now.QuadPart - sw->start.QuadPart) * 1000ULL
+                    / sw->freq.QuadPart);
+
+#elif defined(__APPLE__)
+    uint64_t elapsed_ns = (mach_absolute_time() - sw->start)
+                          * sw->timebase.numer / sw->timebase.denom;
+    return (size_t)(elapsed_ns / 1000000ULL);
+
+#else
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    uint64_t elapsed_ns = (uint64_t)(now.tv_sec  - sw->start.tv_sec)  * 1000000000ULL
+                        + (uint64_t)(now.tv_nsec - sw->start.tv_nsec);
+    return (size_t)(elapsed_ns / 1000000ULL);
+#endif
+}
+
+// -- public API ---------------------------------------------------------------
+
+void sw_start(StopWatch* sw) {
+    sw->ms      = 0;
+    sw->started = true;
+
+#ifdef _WIN32
+    QueryPerformanceFrequency(&sw->freq);
+    QueryPerformanceCounter(&sw->start);
+
+#elif defined(__APPLE__)
+    mach_timebase_info(&sw->timebase);
+    sw->start = mach_absolute_time();
+
+#else
+    clock_gettime(CLOCK_MONOTONIC, &sw->start);
+#endif
+}
+
+void sw_stop(StopWatch* sw) {
+    if (!sw->started) return;
+    sw->ms      = sw_elapsed_ms(sw);
+    sw->started = false;
+}
 
 // -- init / free --------------------------------------------------------------
 

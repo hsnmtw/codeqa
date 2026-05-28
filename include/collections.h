@@ -105,6 +105,10 @@ static size_t next_prime(size_t min) {
     return min * 2 + 1;  // fallback for very large maps
 }
 
+
+
+
+
 // -- wyhash (fastest modern non-crypto hash) ----------------------------------
 // https://github.com/wangyi-fudan/wyhash
 
@@ -141,6 +145,35 @@ static uint64_t wyhash(const char* key) {
 }
 
 // -- tombstone sentinel -------------------------------------------------------
+
+static uint64_t djb2(const char* key) {
+    unsigned long result = 5381;
+    int c;
+    while (c = *key++) {
+        result = ((result << 5) + result) + c;
+    }
+    return result;
+}
+
+// #include <math.h>
+// static uint64_t myhash(const char* key) {
+//     const uint64_t l = strlen(key);
+//     long sum = (long)pow(l,l); 
+//     for (uint64_t i = 0; i < l; i++)
+//     {
+//         unsigned char c = (byte)key[i];
+//         uint64_t p = next_prime(i/2);
+//         sum =  (sum*p ^ c*(l-i)) << 3;
+//     }
+//     int64_t hash = (int64_t)sum;
+//     return hash < 0 ? -hash : hash;
+// }
+
+static uint64_t hash(const char* key) {
+    // return myhash(key);
+    // return djb2(key);
+    return wyhash(key);
+}
 
 #define TOMB ((char*)-1)   // deleted slot marker
 #define is_empty(p)  ((p).key == NULL)
@@ -181,7 +214,7 @@ static bool rehash(Map* map, size_t new_cap) {
 
     for (size_t i = 0; i < map->capacity; i++) {
         if (!is_live(map->items[i])) continue;
-        uint64_t h    = wyhash(map->items[i].key);
+        uint64_t h    = hash(map->items[i].key);
         size_t   slot = find_slot(new_items, new_cap, map->items[i].key, h);
         new_items[slot] = map->items[i];  // key/value ownership transfers
     }
@@ -219,7 +252,7 @@ void map_set(Map* map, const char* key, const void* value) {
         if (!rehash(map, new_cap)) return;
     }
 
-    uint64_t h    = wyhash(key);
+    uint64_t h    = hash(key);
     size_t   slot = find_slot(map->items, map->capacity, key, h);
 
     if (is_live(map->items[slot])) {
@@ -238,7 +271,7 @@ void map_set(Map* map, const char* key, const void* value) {
 void* map_get(Map* map, const char* key) {
     if (!map->items || map->len == 0) return NULL;
 
-    uint64_t h    = wyhash(key);
+    uint64_t h    = hash(key);
     size_t   slot = find_slot(map->items, map->capacity, key, h);
 
     return is_live(map->items[slot]) ? map->items[slot].value : NULL;

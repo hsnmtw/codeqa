@@ -1,0 +1,50 @@
+[1;44;37m DBG: [0m ------------------------------- da
+[1;42;37m INF: [0m count = 3
+[1;44;37m DBG: [0m ------------------------------- unique
+[1;42;37m INF: [0m count = 1
+[1;43;37m WRN: [0m 
+[1;44;37m DBG: [0m 
+[1;44;40m TRC: [0m 
+Map tests
+=========
+
+  [t_map__init                                  ] [1;42;37m PASS [0m 
+  [t_map__set_and_get                           ] [1;42;37m PASS [0m 
+  [t_map__get_missing_key                       ] [1;42;37m PASS [0m 
+  [t_map__overwrite_key                         ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_map__multiple_keys                         ] [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_map__len_tracking                          ] [1;42;37m PASS [0m 
+  [t_map__rehash_on_growth                      ] [1;42;37m PASS [0m 
+  [t_map__empty_string_key                      ] [1;42;37m PASS [0m 
+  [t_map__long_key                              ] [1;42;37m PASS [0m 
+  [t_map__collision_keys                        ] [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_map__null_value                            ] [1;42;37m PASS [0m 
+  [t_map__free_reuse                            ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_map__read_entire_file                      ] [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_map__read_stream_file                      ] [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m 
+=========================================================StringBuilder tests
+===================
+  [t_sb_sv__init                                ] [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__append_plain                        ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__append_format                       ] [1;42;37m PASS [0m 
+  [t_sb_sv__append_float                        ] [1;42;37m PASS [0m 
+  [t_sb_sv__appendln_adds_newline               ] [1;42;37m PASS [0m 
+  [t_sb_sv__appendln_format                     ] [1;42;37m PASS [0m 
+  [t_sb_sv__multiple_appends                    ] [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__to_sv_joins_fragments               ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__to_sv_clears_sb                     ] [1;42;37m PASS [0m 
+  [t_sb_sv__to_sv_empty_sb                      ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__to_sv_with_newlines                 ] [1;42;37m PASS [0m 
+  [t_sb_sv__set_length_truncates_mid_chunk      ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__set_length_drops_trailing_chunks    ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__set_length_noop_when_longer         ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__grow_beyond_init_cap                ] [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__free_reuse                          ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__append_empty_string                 ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+  [t_sb_sv__to_sv_reusable_after_clear          ] [1;42;37m PASS [0m [1;42;37m PASS [0m 
+=========================================================
+
+  [ UNIT TESTS ] 65 passed, 0 failed
+
+[1;41;37m ERR: [0m ------------------------ TESTING ERROR COLORS
+Exit normally
