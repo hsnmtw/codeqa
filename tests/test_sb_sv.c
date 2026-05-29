@@ -85,7 +85,7 @@ TEST(t_sb_sv__to_sv_joins_fragments) {
     EXPECT_STR(sv.buffer, "hello, world");
     EXPECT_INT((int)sv.len, 12);
 
-    free(sv.buffer);
+    FREE(sv.buffer);
     sb_free(&sb);
 }
 
@@ -98,7 +98,7 @@ TEST(t_sb_sv__to_sv_clears_sb) {
     sb_to_sv_and_clear_sb(&sb, &sv);
     EXPECT_INT((int)sb.len, 0);
 
-    free(sv.buffer);
+    FREE(sv.buffer);
     sb_free(&sb);
 }
 
@@ -111,7 +111,7 @@ TEST(t_sb_sv__to_sv_empty_sb) {
     EXPECT_STR(sv.buffer, "");
     EXPECT_INT((int)sv.len, 0);
 
-    free(sv.buffer);
+    FREE(sv.buffer);
     sb_free(&sb);
 }
 
@@ -125,7 +125,7 @@ TEST(t_sb_sv__to_sv_with_newlines) {
     sb_to_sv_and_clear_sb(&sb, &sv);
     EXPECT_STR(sv.buffer, "line1\nline2\n");
 
-    free(sv.buffer);
+    FREE(sv.buffer);
     sb_free(&sb);
 }
 
@@ -141,7 +141,7 @@ TEST(t_sb_sv__set_length_truncates_mid_chunk) {
     EXPECT_STR(sv.buffer, "hellowo");
     EXPECT_INT((int)sv.len, 7);
 
-    free(sv.buffer);
+    FREE(sv.buffer);
     sb_free(&sb);
 }
 
@@ -158,7 +158,7 @@ TEST(t_sb_sv__set_length_drops_trailing_chunks) {
     sb_to_sv_and_clear_sb(&sb, &sv);
     EXPECT_STR(sv.buffer, "abcde");
 
-    free(sv.buffer);
+    FREE(sv.buffer);
     sb_free(&sb);
 }
 
@@ -221,8 +221,8 @@ TEST(t_sb_sv__to_sv_reusable_after_clear) {
     EXPECT_STR(sv1.buffer, "round1");
     EXPECT_STR(sv2.buffer, "round2");
 
-    free(sv1.buffer);
-    free(sv2.buffer);
+    FREE(sv1.buffer);
+    FREE(sv2.buffer);
     sb_free(&sb);
 }
 

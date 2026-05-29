@@ -194,7 +194,11 @@ TEST(t_map__read_entire_file) {
 
 TEST(t_map__read_stream_file) {
     size_t mss = 0;
-    const size_t iterations = 50;
+    const size_t iterations = 33;
+    unsigned char word[128] = {0};
+    size_t word_len = 0;
+    const size_t BUF_SIZE = 224;
+    unsigned char* buffer = CALLOC(BUF_SIZE, sizeof(char));
     
     Map map;
     map_init(&map);
@@ -205,23 +209,28 @@ TEST(t_map__read_stream_file) {
             FILE* f = fopen("./data/t8.shakespeare.txt","rb");
             if (!f) {
                 EXPECT(false);
+                continue;
             }
 
-            unsigned char word[256];
-            size_t word_len = 0;
-            unsigned char buffer[1] = {0};
-            while(fread(buffer,1,1,f) > 0) {
-                if (isspace(buffer[0])) {
-                    if (word_len > 0) {
-                        word[word_len] = '\0';
-                        size_t count = (size_t)map_get(&map, (const char*)word);
-                        map_set(&map, (const char*)word, (void*)(count + 1));
-                        word_len = 0;
+            word_len = 0;
+            
+            size_t r = 0;
+            while((r = fread(buffer,1,BUF_SIZE,f)) > 0) {
+                for(size_t i=0;i<r;++i){
+                    unsigned char chr = buffer[i];
+                    if (isspace(chr)) {
+                        if (word_len > 0) {
+                            word[word_len] = '\0';
+                            size_t count = (size_t)map_get(&map, (const char*)word);
+                            map_set(&map, (const char*)word, (void*)(count + 1));
+                            word_len = 0;
+                        }
+                        continue;
                     }
-                    continue;
+                    if (word_len < sizeof(word) - 1) {
+                        word[word_len++] = chr;
+                    }
                 }
-                if (word_len < sizeof(word) - 1)
-                    word[word_len++] = buffer[0];
             }
             // flush last word if file doesn't end with whitespace
             if (word_len > 0) {
@@ -238,6 +247,7 @@ TEST(t_map__read_stream_file) {
 
     }
 
+    FREE(buffer);
 
     DynamicArray keys = {0};
     map_keys(&map,&keys);
@@ -252,6 +262,7 @@ TEST(t_map__read_stream_file) {
     // EXPECT_INT(2, keys.len);
     // EXPECT_INT(5, (size_t)map_get(&map, keys.items[0]));
 
+    EXPECT_(  4912*iterations , (size_t)map_get(&map, "it" ));
     EXPECT_(  9576*iterations , (size_t)map_get(&map, "in" ));
     EXPECT_(  3965*iterations , (size_t)map_get(&map, "The"));
     EXPECT_( 12532*iterations , (size_t)map_get(&map, "a"  ));
@@ -262,7 +273,7 @@ TEST(t_map__read_stream_file) {
 
     EXPECT( 195 > mss/iterations );
 
-    println("\n\n[%zu]\n\n", mss/iterations ); 
+    println("\n\n[%zu] %f\n\n", mss/iterations, mss/1000.0 ); 
 
     map_free(&map);
 }

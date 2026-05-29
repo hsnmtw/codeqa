@@ -39,6 +39,7 @@ bool io_is_directory(const char* path) {
 
 
 void read_entire_file(const char *file_path, StringView *sv) {
+    const char* f_name = nameof(read_entire_file);
     sv->buffer = NULL;
     sv->len    = 0;
 
@@ -47,23 +48,23 @@ void read_entire_file(const char *file_path, StringView *sv) {
     // --- open ---
     FILE *f = fopen(file_path, "rb");
     if (!f) {
-        err("%s: fopen failed: %s\n", __FUNCTION__, strerror(errno));
+        err("%s: fopen failed: %s\n", f_name, strerror(errno));
         return;
     }
 
     // --- get size via stat ---
     struct stat st;
     if (stat(file_path, &st) != 0) {
-        err("%s: stat failed: %s\n", __FUNCTION__, strerror(errno));
+        err("%s: stat failed: %s\n", f_name, strerror(errno));
         fclose(f);
         return;
     }
     size_t size = (size_t)st.st_size;
 
     // --- allocate (+1 for null terminator) ---
-    char *buf = malloc(size + 1);
+    char *buf = MALLOC(size + 1);
     if (!buf) {
-        err("%s: out of memory: %s\n", __FUNCTION__, strerror(errno));
+        err("%s: out of memory: %s\n", f_name, strerror(errno));
         fclose(f);
         return;
     }
@@ -72,7 +73,7 @@ void read_entire_file(const char *file_path, StringView *sv) {
     size_t read = fread(buf, 1, size, f);
     if (read != size) {
         err("fread: expected %zu bytes, got %zu\n", size, read);
-        free(buf);
+        FREE(buf);
         fclose(f);
         return;
     }

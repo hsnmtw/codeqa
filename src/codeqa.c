@@ -80,7 +80,7 @@ void print_options(Options* options) {
 
 
 
-bool even(const char* _, size_t i) { return i % 2 == 0; }
+// bool even(const char* _, size_t i) { return i % 2 == 0; }
 
 #include "../tests/test_collections.c"
 #include "../tests/test_sb_sv.c"
