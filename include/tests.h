@@ -9,19 +9,37 @@
     #define TEST(t_unit) static void test_##t_unit(void)
     #define RUN(t_unit)  do { printf("\n  [%-45s] ", #t_unit); test_##t_unit(); } while(0)
 
-    #define EXPECT(cond) do {                                                     \
-        if (cond) { printf(ANSI_INF" PASS "RESET" "); passed++;                    \
+    #define EXPECT(cond)  __extension__ ({                                      \
+        bool _passed = true;                                                     \
+        if (cond) { printf(ANSI_INF" PASS "RESET" "); { passed++; }             \
         } else    { printf(ANSI_ERR" FAIL "RESET" (%s:%d)", __FILE__, __LINE__);\
-                    failed++; }                                                   \
-    } while(0)
+                    failed++; _passed = false; }                                 \
+        _passed;                                                                 \
+    })
 
-    #define EXPECT_(e,a) do {                                                     \
-        if (e == a) { printf(ANSI_INF" PASS "RESET" "); passed++;                    \
-        } else    { printf(ANSI_ERR" FAIL (expected: %zu, actual: %zu) "RESET" (%s:%d)\n",e,a, __FILE__, __LINE__);\
-                    failed++; }                                                   \
-    } while(0)
+    // #define EXPECT_(e,a) __extension__ ({                                                     \
+    //     if (e == a) { printf(ANSI_INF" PASS "RESET" "); { passed++; true; }                    \
+    //     } else    { printf(ANSI_ERR" FAIL (expected: %zu, actual: %zu) "RESET" (%s:%d)\n",e,a, __FILE__, __LINE__);\
+    //                 failed++; false; }                                                   \
+    // })
 
-    #define EXPECT_STR(a, b) EXPECT((a) && (b) && strcmp((a),(b)) == 0)
-    #define EXPECT_NULL(p)   EXPECT((p) == NULL)
-    #define EXPECT_INT(a, b) EXPECT((a) == (b))
+    #define _EXPECT_STR(a, b)   EXPECT((a) && (b) && strcmp((a),(b)) == 0)
+    #define _EXPECT_NULL(p)     EXPECT((p) == NULL)
+    #define _EXPECT_NOT_NULL(p) EXPECT((p) != NULL)
+    #define _EXPECT_INT(a, b)   EXPECT((a) == (b))
+    #define EXPECT_STR(a, b)    __extension__({ bool _pass = true; if(!_EXPECT_STR(a, b))     { _pass = false; wrn("Expected `%s` but got `%s`", a, b); } _pass; })
+    #define EXPECT_NULL(p)      __extension__({ bool _pass = true; if(!_EXPECT_NULL(p)  )     { _pass = false; wrn("Expected NULL but got `%p`", p   ); } _pass; })
+    #define EXPECT_NOT_NULL(p)  __extension__({ bool _pass = true; if(!_EXPECT_NOT_NULL(p)  ) { _pass = false; wrn("Expected NOT NULL but got NULL");   } _pass; })
+    #define EXPECT_INT(a, b)    __extension__({ bool _pass = true; if(!_EXPECT_INT(a, b))     { _pass = false; wrn("Expected `%d` but got `%d`", a, b); } _pass; })
+
+    // bool EXPECT(bool cond) {
+    //     bool passed = true;
+    //     if (cond) { printf(ANSI_INF" PASS "RESET" "); { passed++; }
+    //     } else    { printf(ANSI_ERR" FAIL "RESET" (%s:%d)", __FILE__, __LINE__);
+    //                 failed++; passed = false; }
+    //     return passed;
+    // }
+
+
+
 #endif//TESTS_H_

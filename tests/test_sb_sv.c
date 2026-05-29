@@ -13,7 +13,7 @@
 TEST(t_sb_sv__init) {
     StringBuilder sb;
     sb_init(&sb);
-    EXPECT(sb.items    != NULL);
+    EXPECT_NOT_NULL(sb.items);
     EXPECT(sb.len      == 0);
     EXPECT(sb.capacity == SB_INIT_CAP);
     sb_free(&sb);
@@ -177,8 +177,8 @@ TEST(t_sb_sv__grow_beyond_init_cap) {
     sb_init(&sb);
     // push 2x initial capacity to force at least one realloc
     for (int i = 0; i < SB_INIT_CAP * 2; i++) sb_fpush(&sb, "%d", i);
-    EXPECT_INT((int)sb.len, SB_INIT_CAP * 2);
-    EXPECT(sb.capacity >= (size_t)(SB_INIT_CAP * 2));
+    EXPECT_INT((int)sb.len, (SB_INIT_CAP * 2));
+    EXPECT(sb.capacity >= (SB_INIT_CAP * 2));
 
     // spot-check a few values
     EXPECT_STR(sb.items[0],             "0");

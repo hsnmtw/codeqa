@@ -1,6 +1,8 @@
 #ifndef COLLECTIONS_H_
 #define COLLECTIONS_H_
 
+static bool ___enable_debug = false;
+
 // #define COMMON_IMPL
 #include "common.h"
 #include <stdbool.h>
@@ -41,7 +43,8 @@ typedef struct {
 // ------------------------------------------------
 //  counts variadic arguments at compile time
 // ------------------------------------------------
-#define _DA_NARGS(...) (sizeof((const char*[]){__VA_ARGS__}) / sizeof(const char*))
+#define _DA_NARGS(...) PP_NARG(__VA_ARGS__)
+// #define _DA_NARGS(...) (sizeof((const char*[]){__VA_ARGS__}) / sizeof(const char*))
 
 // -----------------------------------------
 //  constructs a stack baed dynamic array
@@ -407,15 +410,7 @@ bool da_remove(DynamicArray *da, int index) {
     da->len--;
     return true;
 }
-
 void da_init(DynamicArray *da) {
-    if (da == NULL) {
-        *da = (DynamicArray){0};
-    }
-    if (da->len>0 && da->items) {
-        da_free(da);
-        return;
-    }
     da->items    = NULL;
     da->len      = 0;
     da->capacity = 0;
@@ -431,7 +426,7 @@ void da_clear(DynamicArray *da) {
 
 void da_filter(DynamicArray* src, DynamicArray* dest, FunctionStringPredicate pred) {
     const char* f_name = nameof(da_filter);
-    if (!src || !pred || !dest) {
+    if (!src || !pred || !dest || !src->len) {
         return;
     }
 
@@ -579,7 +574,7 @@ size_t da_count(DynamicArray* da, FunctionStringPredicate pred) {
 void da_map(DynamicArray* src, DynamicArray* dest, FunctionStringToString func) {
     const char* f_name = nameof(da_map);
 
-    if (!src || !func || !dest) {
+    if (!src || !func || !dest || !src->len) {
         return;
     }
 

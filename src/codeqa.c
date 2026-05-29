@@ -84,6 +84,7 @@ void print_options(Options* options) {
 
 #include "../tests/test_collections.c"
 #include "../tests/test_sb_sv.c"
+#include "../tests/test_dynamic_arrays.c"
 
 int main(int argc, char** argv) {
     unused(argc);
@@ -105,6 +106,8 @@ int main(int argc, char** argv) {
 
     test_map();
     test_sb_sv();
+    test_dynamic_arrays();
+
     printf("\n\n  [ UNIT TESTS ] %d passed, %d failed\n\n", passed, failed);
 
 

@@ -6,7 +6,7 @@ using System.Diagnostics;
 
 Dictionary<string,int> map = [];
 long mss = 0;
-int its = 33;
+int its = 3;
 const int BUF_SIZE = 224;
 char[] word = new char[128];
 byte[] buffer = new byte[BUF_SIZE];

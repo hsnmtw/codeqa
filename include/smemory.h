@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
+#include "logger.h"
 
 #define MALLOC  my_malloc
 #define REALLOC my_realloc
@@ -29,7 +30,7 @@ typedef struct Block {
 
 // -- static heap --------------------------------------------------------------
 
-static uint8_t  heap[HEAP_SIZE];
+static uint8_t  heap[HEAP_SIZE] = {0};
 static Block*   heap_head = NULL;
 
 // -- init (called once on first alloc) ----------------------------------------
@@ -83,14 +84,20 @@ static Block* block_find(size_t size) {
 // -- public API ---------------------------------------------------------------
 
 void* my_malloc(size_t size) {
-    if (size == 0) return NULL;
+    if (size == 0) {
+        wrn("why would someone request to allocate a zero sized memory space ???");
+        return NULL;
+    }
     if (!heap_head) heap_init();
 
     size = ALIGN_UP(size);
 
     Block* b = block_find(size);
     if (!b) { heap_coalesce(); b = block_find(size); }
-    if (!b) return NULL;  // OOM
+    if (!b) {
+        wrn("running low on memory !!!");
+        return NULL;  // OOM
+    }
 
     block_split(b, size);
     b->free = false;
@@ -102,6 +109,10 @@ void my_free(void* ptr) {
     if (!ptr) return;
 
     Block* b = (Block*)((uint8_t*)ptr - HEADER_SIZE);
+    if (!b) {
+        wrn("attempting to free memory of an invalid pointer !");
+        return;
+    }
     b->free  = true;
 
     heap_coalesce();  // merge immediately to prevent fragmentation

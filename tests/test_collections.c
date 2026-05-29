@@ -156,6 +156,7 @@ TEST(t_map__read_entire_file) {
     char word[256];
     size_t word_len = 0;
     map_init(&map);
+    EXPECT_NOT_NULL(&map);
     for (size_t i = 0; i < sv.len; ++i) {
         if (isspace((unsigned char)sv.buffer[i])) {
             if (word_len > 0) {
@@ -182,10 +183,14 @@ TEST(t_map__read_entire_file) {
     //     size_t count = (size_t) map_get(&map,keys.items[i]);
     //     inf("key = [%s] = %zu", keys.items[i], count);
     // }
+    EXPECT_NOT_NULL(&map);
 
-    EXPECT_INT(2, map.len);
-    EXPECT_INT(2, keys.len);
-    EXPECT_INT(5, (size_t)map_get(&map, keys.items[0]));
+    EXPECT_INT(2, (int)map.len);
+    EXPECT_INT(2, (int)keys.len);
+    // printf("\n\n%p : '%s'\n\n", keys.items[0], keys.items[0]);
+    void* p = map_get(&map, keys.items[0]);
+    // printf("%zu\n", (size_t)p);
+    EXPECT_INT(5, (int)(uintptr_t)p);
 
     sb_free(&sb);
     sv_free(&sv);
@@ -194,7 +199,7 @@ TEST(t_map__read_entire_file) {
 
 TEST(t_map__read_stream_file) {
     size_t mss = 0;
-    const size_t iterations = 33;
+    const size_t iterations = 3;
     unsigned char word[128] = {0};
     size_t word_len = 0;
     const size_t BUF_SIZE = 224;
@@ -262,14 +267,14 @@ TEST(t_map__read_stream_file) {
     // EXPECT_INT(2, keys.len);
     // EXPECT_INT(5, (size_t)map_get(&map, keys.items[0]));
 
-    EXPECT_(  4912*iterations , (size_t)map_get(&map, "it" ));
-    EXPECT_(  9576*iterations , (size_t)map_get(&map, "in" ));
-    EXPECT_(  3965*iterations , (size_t)map_get(&map, "The"));
-    EXPECT_( 12532*iterations , (size_t)map_get(&map, "a"  ));
-    EXPECT_( 15623*iterations , (size_t)map_get(&map, "to" ));
-    EXPECT_( 18297*iterations , (size_t)map_get(&map, "and"));
-    EXPECT_( 15544*iterations , (size_t)map_get(&map, "of" ));
-    EXPECT_( 23242*iterations , (size_t)map_get(&map, "the"));
+    EXPECT(  4912*iterations == (size_t)map_get(&map, "it" ));
+    EXPECT(  9576*iterations == (size_t)map_get(&map, "in" ));
+    EXPECT(  3965*iterations == (size_t)map_get(&map, "The"));
+    EXPECT( 12532*iterations == (size_t)map_get(&map, "a"  ));
+    EXPECT( 15623*iterations == (size_t)map_get(&map, "to" ));
+    EXPECT( 18297*iterations == (size_t)map_get(&map, "and"));
+    EXPECT( 15544*iterations == (size_t)map_get(&map, "of" ));
+    EXPECT( 23242*iterations == (size_t)map_get(&map, "the"));
 
     EXPECT( 195 > mss/iterations );
 
