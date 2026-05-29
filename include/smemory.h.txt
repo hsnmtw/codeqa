@@ -42,6 +42,17 @@ static void heap_init(void) {
     heap_head->next  = NULL;
 }
 
+// -- strdup
+
+static inline char* my_strdup(const char* str) {
+    if (!str) return NULL;
+    size_t len = strlen(str) + 1;
+    char*  buf = MALLOC(len);
+    if (!buf) return NULL;
+    memcpy(buf, str, len);
+    return buf;
+}
+
 // -- split a block if remainder is large enough -------------------------------
 
 static void block_split(Block* b, size_t size) {

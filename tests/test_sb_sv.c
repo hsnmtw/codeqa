@@ -85,7 +85,7 @@ TEST(t_sb_sv__to_sv_joins_fragments) {
     EXPECT_STR(sv.buffer, "hello, world");
     EXPECT_INT((int)sv.len, 12);
 
-    FREE(sv.buffer);
+    sv_free(&sv);
     sb_free(&sb);
 }
 
@@ -98,7 +98,7 @@ TEST(t_sb_sv__to_sv_clears_sb) {
     sb_to_sv_and_clear_sb(&sb, &sv);
     EXPECT_INT((int)sb.len, 0);
 
-    FREE(sv.buffer);
+    sv_free(&sv);
     sb_free(&sb);
 }
 
@@ -111,7 +111,7 @@ TEST(t_sb_sv__to_sv_empty_sb) {
     EXPECT_STR(sv.buffer, "");
     EXPECT_INT((int)sv.len, 0);
 
-    FREE(sv.buffer);
+    sv_free(&sv);
     sb_free(&sb);
 }
 
@@ -125,7 +125,7 @@ TEST(t_sb_sv__to_sv_with_newlines) {
     sb_to_sv_and_clear_sb(&sb, &sv);
     EXPECT_STR(sv.buffer, "line1\nline2\n");
 
-    FREE(sv.buffer);
+    sv_free(&sv);
     sb_free(&sb);
 }
 
@@ -141,7 +141,7 @@ TEST(t_sb_sv__set_length_truncates_mid_chunk) {
     EXPECT_STR(sv.buffer, "hellowo");
     EXPECT_INT((int)sv.len, 7);
 
-    FREE(sv.buffer);
+    sv_free(&sv);
     sb_free(&sb);
 }
 
@@ -158,7 +158,7 @@ TEST(t_sb_sv__set_length_drops_trailing_chunks) {
     sb_to_sv_and_clear_sb(&sb, &sv);
     EXPECT_STR(sv.buffer, "abcde");
 
-    FREE(sv.buffer);
+    sv_free(&sv);
     sb_free(&sb);
 }
 
@@ -176,7 +176,9 @@ TEST(t_sb_sv__grow_beyond_init_cap) {
     StringBuilder sb;
     sb_init(&sb);
     // push 2x initial capacity to force at least one realloc
-    for (int i = 0; i < SB_INIT_CAP * 2; i++) sb_fpush(&sb, "%d", i);
+    for (int i = 0; i < SB_INIT_CAP * 2; i++) {
+        sb_fpush(&sb, "%d", i);
+    }
     EXPECT_INT((int)sb.len, (SB_INIT_CAP * 2));
     EXPECT(sb.capacity >= (SB_INIT_CAP * 2));
 

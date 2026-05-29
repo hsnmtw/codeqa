@@ -62,7 +62,7 @@ void read_entire_file(const char *file_path, StringView *sv) {
     size_t size = (size_t)st.st_size;
 
     // --- allocate (+1 for null terminator) ---
-    char *buf = MALLOC(size + 1);
+    char *buf = (char*)MALLOC(size + 1); //[memory reports we are leaking memory here]
     if (!buf) {
         err("%s: out of memory: %s\n", f_name, strerror(errno));
         fclose(f);
@@ -84,6 +84,7 @@ void read_entire_file(const char *file_path, StringView *sv) {
 
     sv->buffer = buf;
     sv->len    = size;
+    sv->kind   = SV_OWNED;
 
     // strip UTF-8 BOM if present (EF BB BF)
     if (sv->len >= 3 &&
@@ -91,7 +92,7 @@ void read_entire_file(const char *file_path, StringView *sv) {
         (unsigned char)sv->buffer[1] == 0xBB &&
         (unsigned char)sv->buffer[2] == 0xBF)
     {
-        memmove(sv->buffer, sv->buffer + 3, sv->len - 3 + 1);  // +1 for null terminator
+        MEMMOVE(sv->buffer, sv->buffer + 3, sv->len - 3 + 1);  // +1 for null terminator
         sv->len -= 3;
     }    
 

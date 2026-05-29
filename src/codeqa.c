@@ -85,24 +85,35 @@ void print_options(Options* options) {
 #include "../tests/test_collections.c"
 #include "../tests/test_sb_sv.c"
 #include "../tests/test_dynamic_arrays.c"
+#include "shell.h"
 
 int main(int argc, char** argv) {
     unused(argc);
     unused(argv);
-    
-    DynamicArray da = DA_OF("1","1","1");
-    DynamicArray unique = {0};
 
-    da_distinct(&da, &unique);
-
-    dbg("------------------------------- da");
-    inf("count = %zu", da.len);
-    dbg("------------------------------- unique");
-    inf("count = %zu", unique.len);
+    #ifdef _WIN32
+        execute_shell("color 7",1);
+        execute_shell("chcp 65001",1);
+    #endif
+    execute_shell("whoami",1);
     
-    wrn("");
-    dbg("");
-    trc("");
+    
+    // DynamicArray da = DA_OF("1","1","1");
+    // DynamicArray unique = {0};
+
+    // da_distinct(&da, &unique);
+
+    // dbg("------------------------------- da");
+    // inf("count = %zu", da.len);
+    // dbg("------------------------------- unique");
+    // inf("count = %zu", unique.len);
+    
+    // wrn("");
+    // dbg("");
+    // trc("");
+
+    // da_free(&da);
+    // da_free(&unique);
 
     test_map();
     test_sb_sv();
@@ -110,7 +121,9 @@ int main(int argc, char** argv) {
 
     printf("\n\n  [ UNIT TESTS ] %d passed, %d failed\n\n", passed, failed);
 
+    mem_stats();   // heap utilization
+    mem_report();  // leaks + overflow detection
 
-    err("------------------------ TESTING ERROR COLORS\nExit normally");
+    dbg("------------------------ TESTING ERROR COLORS\nExit normally");
     return 0;
 }

@@ -11,7 +11,7 @@
 
     #define EXPECT(cond)  __extension__ ({                                      \
         bool _passed = true;                                                     \
-        if (cond) { printf(ANSI_INF" PASS "RESET" "); { passed++; }             \
+        if (cond) { printf(ANSI_INF" ✓ "RESET" "); { passed++; }             \
         } else    { printf(ANSI_ERR" FAIL "RESET" (%s:%d)", __FILE__, __LINE__);\
                     failed++; _passed = false; }                                 \
         _passed;                                                                 \

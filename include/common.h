@@ -1,17 +1,18 @@
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #pragma GCC diagnostic ignored "-Wvariadic-macros"
-
+#pragma CC diagnostic ignored "-Wformat-overflow"
 
 #ifndef COMMON_H_
 #define COMMON_H_
 
+#include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
 #include "logger.h"
-#include "smemory.h"
+#include "stack_memory.h"
 
 // Source - https://dev.to/tomoyukiaota/exploring-c-equivalent-of-cs-nameof-operator-1p8c
 #define nameof(name) #name
@@ -49,12 +50,13 @@
   #include <time.h>  // POSIX clock_gettime
 #endif
 
+
 // with snprintf — needs a helper macro
 #define TMP_SPRINTF_SIZE 256
 #define tmp_sprintf(fmt, ...) __extension__({ \
     char _buf[TMP_SPRINTF_SIZE]; \
-    sprintf(_buf, fmt  ,__VA_ARGS__); \
-    strdup(_buf); \
+    int r = sprintf(_buf, fmt  __VA_OPT__(,)__VA_ARGS__); \
+    r == 0 ? "" : _buf; \
 })
 
 
@@ -179,15 +181,17 @@ void sb_init(StringBuilder* sb) {
 
 void sb_free(StringBuilder* sb) {
     if (!sb || !sb->items) {
+        wrn("free NULL sb");
         return;
     }
 
-    for (size_t i = 0; i < sb->len; i++) {
-        if (sb->items[i]) {
+    if (sb->items) {
+        for (size_t i = 0; i < sb->len; i++) {
+            //dbg("freeing item %zu",i);
             FREE(sb->items[i]);
         }
+        FREE(sb->items);
     }
-    FREE(sb->items);
     sb->items    = NULL;
     sb->len      = 0;
     sb->capacity = 0;
@@ -198,7 +202,10 @@ void sb_free(StringBuilder* sb) {
 static bool sb_grow(StringBuilder* sb) {
     size_t new_cap = sb->capacity * 2;
     char** grown   = REALLOC(sb->items, new_cap * sizeof(char*));
-    if (!grown) return false;
+    if (!grown) {
+        wrn("failed to grow sb !");
+        return false;
+    }
     sb->items    = grown;
     sb->capacity = new_cap;
     return true;
@@ -207,8 +214,9 @@ static bool sb_grow(StringBuilder* sb) {
 // -- core append (owns the formatted string) ----------------------------------
 
 bool sb_push(StringBuilder* sb, const char* s) {
-    if (sb->len == sb->capacity && !sb_grow(sb)) { return false; }
-    sb->items[sb->len++] = sdup(s);
+    if (sb->len >= sb->capacity && !sb_grow(sb)) { return false; }
+    // if (sb->items[sb->len]) FREE(sb->items[sb->len]);
+    sb->items[sb->len++] = STRDUP(s);
     return true;
 }
 
@@ -261,8 +269,10 @@ void sb_set_length(StringBuilder* sb, size_t len) {
     }
     size_t total = 0;
     for (size_t i = 0; i < sb->len; i++) {
+        assert(sb->items[i] != NULL && "sb item cannot be null here");
         size_t chunk = strlen(sb->items[i]);
         if (total + chunk >= len) {
+            assert(len >= total && "???");
             sb->items[i][len - total] = '\0';   // truncate this chunk
             for (size_t j = i + 1; j < sb->len; j++) FREE(sb->items[j]);
             sb->len = i + 1;
@@ -346,7 +356,10 @@ void sv_realloc(StringView* sv, size_t length) {
 }
 
 void sv_free(StringView* sv) {
-    if (!sv || !sv->buffer || !sv->kind) return;
+    if (!sv || !sv->buffer) {
+        wrn("freeing is not necessary !");
+        return;
+    }
     FREE(sv->buffer);
     sv->buffer = NULL;
     sv->len    = 0;

@@ -150,51 +150,55 @@ TEST(t_map__free_reuse) {
 TEST(t_map__read_entire_file) {
     StringView sv = {0};
     read_entire_file("./data/long-text.txt",&sv);
-    //tokenize the text into words
-    StringBuilder sb = {0};
-    Map map;
-    char word[256];
-    size_t word_len = 0;
-    map_init(&map);
-    EXPECT_NOT_NULL(&map);
-    for (size_t i = 0; i < sv.len; ++i) {
-        if (isspace((unsigned char)sv.buffer[i])) {
-            if (word_len > 0) {
-                word[word_len] = '\0';
-                size_t count = (size_t)map_get(&map, word);
-                map_set(&map, word, (void*)(count + 1));
-                word_len = 0;
-            }
-            continue;
-        }
-        if (word_len < sizeof(word) - 1)
-            word[word_len++] = sv.buffer[i];
-    }
-    // flush last word if file doesn't end with whitespace
-    if (word_len > 0) {
-        word[word_len] = '\0';
-        size_t count = (size_t)map_get(&map, word);
-        map_set(&map, word, (void*)(count + 1));
-    }
+    
+                    //tokenize the text into words
+                    StringBuilder sb = {0};
+                    Map map;
+                    char word[256];
+                    size_t word_len = 0;
+                    map_init(&map);
+                    EXPECT_NOT_NULL(&map);
+                    for (size_t i = 0; i < sv.len; ++i) {
+                        if (isspace((unsigned char)sv.buffer[i])) {
+                            if (word_len > 0) {
+                                word[word_len] = '\0';
+                                size_t count = (size_t)map_get(&map, word);
+                                map_set(&map, word, (void*)(count + 1));
+                                word_len = 0;
+                            }
+                            continue;
+                        }
+                        if (word_len < sizeof(word) - 1) {
+                            word[word_len++] = sv.buffer[i];
+                        }
+                    }
+                    // flush last word if file doesn't end with whitespace
+                    if (word_len > 0) {
+                        word[word_len] = '\0';
+                        size_t count = (size_t)map_get(&map, word);
+                        map_set(&map, word, (void*)(count + 1));
+                    }
 
-    DynamicArray keys = {0};
-    map_keys(&map,&keys);
-    // for(size_t i=0;i<keys.len;++i){
-    //     size_t count = (size_t) map_get(&map,keys.items[i]);
-    //     inf("key = [%s] = %zu", keys.items[i], count);
-    // }
-    EXPECT_NOT_NULL(&map);
+                    DynamicArray keys = {0};
+                    map_keys(&map,&keys);
+                    // for(size_t i=0;i<keys.len;++i){
+                    //     size_t count = (size_t) map_get(&map,keys.items[i]);
+                    //     inf("key = [%s] = %zu", keys.items[i], count);
+                    // }
+                    EXPECT_NOT_NULL(&map);
 
-    EXPECT_INT(2, (int)map.len);
-    EXPECT_INT(2, (int)keys.len);
-    // printf("\n\n%p : '%s'\n\n", keys.items[0], keys.items[0]);
-    void* p = map_get(&map, keys.items[0]);
-    // printf("%zu\n", (size_t)p);
-    EXPECT_INT(5, (int)(uintptr_t)p);
+                    EXPECT_INT(2, (int)map.len);
+                    EXPECT_INT(2, (int)keys.len);
+                    // printf("\n\n%p : '%s'\n\n", keys.items[0], keys.items[0]);
+                    void* p = map_get(&map, keys.items[0]);
+                    // printf("%zu\n", (size_t)p);
+                    EXPECT_INT(5, (int)(uintptr_t)p);
 
-    sb_free(&sb);
+                    sb_free(&sb);
+                    map_free(&map);
+                    da_free(&keys);
+                    
     sv_free(&sv);
-    map_free(&map);
 }
 
 TEST(t_map__read_stream_file) {
@@ -281,6 +285,7 @@ TEST(t_map__read_stream_file) {
     println("\n\n[%zu] %f\n\n", mss/iterations, mss/1000.0 ); 
 
     map_free(&map);
+    da_free(&keys);
 }
 
 // -- runner -------------------------------------------------------------------

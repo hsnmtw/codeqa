@@ -234,13 +234,13 @@ static bool rehash(Map* map, size_t new_cap) {
 }
 
 // -- public API ---------------------------------------------------------------
-
+// NOTE: user must free da using da_free(da) after use
 void map_keys(Map* map,DynamicArray *da) {
     if (!map || !da) return;
     da_init(da);
     for(size_t i=0;i<map->capacity;++i) {
         if (map->items[i].taken) {
-            da_push(da, sdup(map->items[i].key));
+            da_push(da, map->items[i].key);
         }
     }
 }
@@ -270,7 +270,7 @@ void map_set(Map* map, const char* key, const void* value) {
     }
 
     // new slot (empty or tombstone)
-    map->items[slot].key   = strdup(key);
+    map->items[slot].key   = STRDUP(key);
     map->items[slot].value = (void*)value;
     map->items[slot].taken = true;
     map->len++;
@@ -287,8 +287,11 @@ void* map_get(Map* map, const char* key) {
 
 void map_free(Map* map) {
     if (!map->items) return;
-    for (size_t i = 0; i < map->capacity; i++)
-        if (is_live(map->items[i])) FREE(map->items[i].key);
+    for (size_t i = 0; i < map->capacity; i++) {
+        if (is_live(map->items[i])) {
+            FREE(map->items[i].key);
+        }
+    }
     FREE(map->items);
     map->items    = NULL;
     map->len      = 0;
@@ -306,7 +309,7 @@ char* da_dequeue(DynamicArray* da) {
     const char* f_name = nameof(da_dequeue);
     if (da == NULL || !da->items || da->len == 0) return NULL;
     // pop the item at top, and shift array to left
-    char* value = sdup(da->items[0]);
+    char* value = STRDUP(da->items[0]);
     if (!da_remove(da,0)) {
         wrn("%s: failed to remove item from array", f_name);
     }
@@ -316,7 +319,7 @@ char* da_dequeue(DynamicArray* da) {
 char* da_pop(DynamicArray* da) {
     const char* f_name = nameof(da_pop);
     if (da == NULL || da->items == NULL || da->len == 0 || !da->items[0]) return NULL;
-    char* result = sdup(da->items[da->len-1]);
+    char* result = STRDUP(da->items[da->len-1]);
     if (!da_remove(da,(int)(da->len-1))) {
         wrn("%s: failed to pop an item from the list : %s",f_name,strerror(errno));
         return NULL;
@@ -351,30 +354,34 @@ void da_push(DynamicArray *da, const char *value) {
 
         char **new_items;
 
-        if (da->stack) {
+        if (da->stack || da->capacity == 0) {
+            // printf("MALLOC [stack: %s] [items: %p] [len: %zu] [capacity: %zu]\n", da->stack ? "yes": "no",da->items, da->len, da->capacity);
+
             // first grow from stack — must copy to heap manually
             new_items = MALLOC(new_cap * sizeof(char *));
             if (!new_items) { 
-                err("%s: out of memory\n", f_name);
+                err("%s: OOM", f_name);
                 return;
             }
             memcpy(new_items, da->items, da->len * sizeof(char *));
         } else {
-            da->stack = false;   // now heap-owned, safe to realloc from now on
+            // printf("REALLOC [stack: %s] [items: %p] [len: %zu] [capacity: %zu]\n", da->stack ? "yes": "no",da->items, da->len, da->capacity);
             new_items = REALLOC(da->items, new_cap * sizeof(char *));
             if (!new_items) { 
-                err("%s: out of memory\n", f_name);
+                err("%s: OOM", f_name);
                 return;
             }
         }
 
-
+        
+        
+        da->stack    = false;   // now heap-owned, safe to realloc from now on
         da->items    = new_items;
         da->capacity = new_cap;
     }
 
     // heap copy — caller doesn't need to keep value alive
-    da->items[da->len++] = sdup(value);
+    da->items[da->len++] = (char*)value;
 }
 
 void da_free(DynamicArray *da) {
@@ -403,7 +410,7 @@ bool da_remove(DynamicArray *da, int index) {
     if (da == NULL || da->items == NULL) return false;
     if (index < 0 || (size_t)index >= da->len) return false;
     
-    memmove(&da->items[index],
+    MEMMOVE(&da->items[index],
             &da->items[index + 1],
             (da->len - (size_t)index - 1) * sizeof(char *));
     
@@ -439,7 +446,7 @@ void da_filter(DynamicArray* src, DynamicArray* dest, FunctionStringPredicate pr
     size_t count = 0;
     for (size_t i = 0; i < src->len; i++) {
         if (pred(src->items[i],i)) {
-            new_items[count] = sdup(src->items[i]);
+            new_items[count] = src->items[i];
             if (!new_items[count]) {
                 for (size_t j = 0; j < count; j++) {
                     FREE(new_items[j]);
@@ -523,14 +530,14 @@ void da_distinct(DynamicArray* src, DynamicArray* dest) {
     HashSet seen;
     if (!hset_init(&seen, hcap)) return;
 
-    char** new_items = MALLOC(src->len * sizeof(char*));
+    char** new_items = (char**)MALLOC(src->len * sizeof(char*));
     if (!new_items) { hset_free(&seen); return; }
 
     size_t count = 0;
     for (size_t i = 0; i < src->len; i++) {
         if (hset_contains(&seen, src->items[i])) continue;
 
-        new_items[count] = strdup(src->items[i]);
+        new_items[count] = src->items[i];
         if (!new_items[count]) {
             for (size_t j = 0; j < count; j++) FREE(new_items[j]);
             FREE(new_items);
@@ -578,22 +585,14 @@ void da_map(DynamicArray* src, DynamicArray* dest, FunctionStringToString func) 
         return;
     }
 
-    char** new_items = MALLOC(src->len * sizeof(char*));
+    char** new_items = (char**)MALLOC(src->len * sizeof(char*));
     if (!new_items) {
         err("%s : failed to allocate some memory to perform filter on array ! : %s", f_name, strerror(errno));
         return;
     }
 
     for (size_t i = 0; i < src->len; i++) {
-        new_items[i] = func(src->items[i],i);
-        if (!new_items[i]) {
-            for (size_t j = 0; j < i; j++) {
-                FREE(new_items[j]);
-            }
-            FREE(new_items);
-            err("%s : failed to allocate some memory to perform filter on array ! : %s", f_name, strerror(errno));
-            return;
-        }
+        new_items[i] = func(src->items[i],i);        
     }
 
     // free existing result contents before overwriting
@@ -607,7 +606,7 @@ void da_map(DynamicArray* src, DynamicArray* dest, FunctionStringToString func) 
     dest->items    = new_items;
     dest->len      = src->len;
     dest->capacity = src->len;
-    dest->stack    = src->stack;
+    dest->stack    = false;
 }
 
 int cmp_strings(const void* a, const void* b) {

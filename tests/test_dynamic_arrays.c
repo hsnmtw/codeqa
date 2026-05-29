@@ -1,5 +1,5 @@
 
-#include "smemory.h"
+#include "stack_memory.h"
 #include "common.h"
 #include "collections.h"
 #include "tests.h"
@@ -7,7 +7,7 @@
 
 static char* to_upper(const char* s, size_t index) {
     (void)index;
-    char* out = strdup(s);
+    char* out = STRDUP(s);
     for (char* p = out; *p; p++) *p = (char)toupper((unsigned char)*p);
     return out;
 }
@@ -237,6 +237,10 @@ TEST(da_map_transforms_all_items) {
     da_init(&src);
     da_push(&src, "hello");
     da_push(&src, "world");
+    EXPECT_NULL(dest.items);
+    EXPECT_NOT_NULL(src.items);
+    EXPECT_INT((int)src.len, 2);
+    EXPECT_INT((int)dest.len, 0);
     da_map(&src, &dest, to_upper);
     EXPECT_INT((int)dest.len, 2);
     EXPECT_STR(dest.items[0], "HELLO");

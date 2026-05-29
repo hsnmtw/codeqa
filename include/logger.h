@@ -1,7 +1,12 @@
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
+#pragma GCC diagnostic ignored "-Wformat-overflow"
+#pragma CC diagnostic ignored "-Wformat-overflow"
+
 #ifndef LOGGER_H_
 #define LOGGER_H_
 
-#define sdup(x) tmp_sprintf("%s",x)
+
 #define ANSI_ERR "\033[1;41;37m"
 #define ANSI_WRN "\033[1;43;37m"
 #define ANSI_INF "\033[1;42;37m"
@@ -36,5 +41,26 @@
 
 #define todo(s) do { printf(B_RED""F_WHITE" TODO: "RESET" %s:%d <%s> ["F_AMBER"%s"RESET"]\n", __FILE__, __LINE__,__func__,s); exit(1); } while (0)
 #define unused(x) (void)x
+
+static inline void trim(char* s, size_t l) {
+    if (!s || l == 0) return;
+
+    // find first non-whitespace
+    size_t start = 0;
+    while (start < l && (s[start] == '\0' || isspace((unsigned char)s[start])))
+        start++;
+
+    if (start == l) { s[0] = '\0'; return; }  // all whitespace
+
+    // find last non-whitespace
+    size_t end = l - 1;
+    while (end > start && (s[end] == '\0' || isspace((unsigned char)s[end])))
+        end--;
+
+    // end is now the index of the last non-whitespace char
+    size_t new_len = end - start;
+    memmove(s, s + start, new_len);
+    s[new_len] = '\0';
+}
 
 #endif//LOGGER_H_

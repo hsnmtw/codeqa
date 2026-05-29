@@ -2,10 +2,11 @@ SRC=./src/codeqa.c
 BIN=./bin/codeqa.out
 INC=./include 
 CC=clang
-FLG=-Wall                           \
-	-Wextra                         \
-	-Wpedantic                      \
-	-O3
+FLG=-O3 -Wuninitialized #-DMEMORY_DEBUG
+# FLG=-Wall                           \
+# 	-Wextra                         \
+# 	-Wpedantic                      \
+# 	-O3
 # 	-fsanitize=memory -ggdb
 # 	-Wformat=2                      \
 # 	-march=native                   \
