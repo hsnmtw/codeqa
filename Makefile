@@ -19,7 +19,10 @@ FLG=-O3 -Wuninitialized #-DMEMORY_DEBUG
 #STD=-std=c2x
 LIB=
 
-codeqa: ./src/codeqa.c
-	$(CC) $(SRC) -o $(BIN) -I$(INC) $(FLG) $(LIB) $(STD)
+main: ./src/main.c ./include/logger.h ./include/heap.h
+	$(CC) ./src/main.c -o ./bin/main -I$(INC) $(FLG) $(LIB) $(STD)
+
+# codeqa: ./src/codeqa.c
+# 	$(CC) $(SRC) -o $(BIN) -I$(INC) $(FLG) $(LIB) $(STD)
 
 # 	clang -fsanitize=memory -ggdb -Wall -Wextra ./src/codeqa.c -o ./bin/codeqa.out -I./include

@@ -12,7 +12,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include "logger.h"
-#include "stack_memory.h"
+#include "heap.h"
 
 // Source - https://dev.to/tomoyukiaota/exploring-c-equivalent-of-cs-nameof-operator-1p8c
 #define nameof(name) #name
@@ -181,7 +181,7 @@ void sb_init(StringBuilder* sb) {
 
 void sb_free(StringBuilder* sb) {
     if (!sb || !sb->items) {
-        wrn("free NULL sb");
+        //wrn("free NULL sb : %s:%d", __FILE__,__LINE__);
         return;
     }
 

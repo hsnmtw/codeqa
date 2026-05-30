@@ -390,11 +390,11 @@ void da_free(DynamicArray *da) {
     }
 
     if (!da->stack) {
-        for (size_t i = 0; i < da->len; i++) {
-            if (da->items[i] != NULL) {
-                FREE(da->items[i]);
-            }
-        }
+        // for (size_t i = 0; i < da->len; i++) {
+        //     if (da->items[i] != NULL) {
+        //         FREE(da->items[i]);
+        //     }
+        // }
         if (da->items != NULL) {
             FREE(da->items);
         }
@@ -410,9 +410,12 @@ bool da_remove(DynamicArray *da, int index) {
     if (da == NULL || da->items == NULL) return false;
     if (index < 0 || (size_t)index >= da->len) return false;
     
-    MEMMOVE(&da->items[index],
-            &da->items[index + 1],
-            (da->len - (size_t)index - 1) * sizeof(char *));
+    size_t len = (da->len - (size_t)index - 1) * sizeof(char *);
+    if (len) {
+        MEMMOVE(&da->items[index],
+                &da->items[index + 1],
+                len);
+    }
     
     da->len--;
     return true;

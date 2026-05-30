@@ -4,22 +4,22 @@
     static int passed = 0;
     static int failed = 0;
 
-    // #define TEST_RESET() do { passed = 0; failed = 0;  } while(0)
+    // #define TEST_ANSI_RST() do { passed = 0; failed = 0;  } while(0)
 
     #define TEST(t_unit) static void test_##t_unit(void)
     #define RUN(t_unit)  do { printf("\n  [%-45s] ", #t_unit); test_##t_unit(); } while(0)
 
     #define EXPECT(cond)  __extension__ ({                                      \
         bool _passed = true;                                                     \
-        if (cond) { printf(ANSI_INF" ✓ "RESET" "); { passed++; }             \
-        } else    { printf(ANSI_ERR" FAIL "RESET" (%s:%d)", __FILE__, __LINE__);\
+        if (cond) { printf(ANSI_INF" ✓ "ANSI_RST" "); { passed++; }             \
+        } else    { printf(ANSI_ERR" FAIL "ANSI_RST" (%s:%d)", __FILE__, __LINE__);\
                     failed++; _passed = false; }                                 \
         _passed;                                                                 \
     })
 
     // #define EXPECT_(e,a) __extension__ ({                                                     \
-    //     if (e == a) { printf(ANSI_INF" PASS "RESET" "); { passed++; true; }                    \
-    //     } else    { printf(ANSI_ERR" FAIL (expected: %zu, actual: %zu) "RESET" (%s:%d)\n",e,a, __FILE__, __LINE__);\
+    //     if (e == a) { printf(ANSI_INF" PASS "ANSI_RST" "); { passed++; true; }                    \
+    //     } else    { printf(ANSI_ERR" FAIL (expected: %zu, actual: %zu) "ANSI_RST" (%s:%d)\n",e,a, __FILE__, __LINE__);\
     //                 failed++; false; }                                                   \
     // })
 
@@ -34,8 +34,8 @@
 
     // bool EXPECT(bool cond) {
     //     bool passed = true;
-    //     if (cond) { printf(ANSI_INF" PASS "RESET" "); { passed++; }
-    //     } else    { printf(ANSI_ERR" FAIL "RESET" (%s:%d)", __FILE__, __LINE__);
+    //     if (cond) { printf(ANSI_INF" PASS "ANSI_RST" "); { passed++; }
+    //     } else    { printf(ANSI_ERR" FAIL "ANSI_RST" (%s:%d)", __FILE__, __LINE__);
     //                 failed++; passed = false; }
     //     return passed;
     // }

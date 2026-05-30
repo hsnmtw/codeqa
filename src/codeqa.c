@@ -59,15 +59,15 @@ void parse_arguments(Options* options, int argc, char** argv) {
 
 
 void usage(void) {
-    println("   "F_AMBER"# --------------------------------------------------------\n"RESET);
-    println("   #  "B_GREEN"          CODE/QA                                      "RESET);
+    println("   "F_AMBER"# --------------------------------------------------------\n"ANSI_RST);
+    println("   #  "B_GREEN"          CODE/QA                                      "ANSI_RST);
     println("   "F_AMBER"# --------------------------------------------------------\n");
     println("   "F_CYAN"# usage: scan a file or a directory (recursively if needed)\n");
     println("   "F_GREEN"$ ./codeqa (-f)ile/older (-p) *.* (-r)");
-    println("   "F_CYAN"            -f"RESET"   file or folder path");
-    println("   "F_CYAN"            -p"RESET"   pattern");
-    println("   "F_CYAN"            -r"RESET"   recursive");
-    println("   "RESET);
+    println("   "F_CYAN"            -f"ANSI_RST"   file or folder path");
+    println("   "F_CYAN"            -p"ANSI_RST"   pattern");
+    println("   "F_CYAN"            -r"ANSI_RST"   recursive");
+    println("   "ANSI_RST);
 }
 
 
@@ -85,6 +85,7 @@ void print_options(Options* options) {
 #include "../tests/test_collections.c"
 #include "../tests/test_sb_sv.c"
 #include "../tests/test_dynamic_arrays.c"
+#include "../tests/test_heap.c"
 #include "shell.h"
 
 int main(int argc, char** argv) {
@@ -118,11 +119,16 @@ int main(int argc, char** argv) {
     test_map();
     test_sb_sv();
     test_dynamic_arrays();
+    test_heap();
+
 
     printf("\n\n  [ UNIT TESTS ] %d passed, %d failed\n\n", passed, failed);
 
-    mem_stats();   // heap utilization
-    mem_report();  // leaks + overflow detection
+    // mem_stats();   // heap utilization
+    // mem_report();  // leaks + overflow detection
+
+    EXPECT_INT(0, heap_used_count());
+    PRINT_MEMORY();
 
     dbg("------------------------ TESTING ERROR COLORS\nExit normally");
     return 0;

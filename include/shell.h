@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include "stack_memory.h"
+#include "heap.h"
 #include "logger.h"
 
 #ifdef _WIN32
