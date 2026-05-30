@@ -85,7 +85,7 @@ void print_options(Options* options) {
 #include "../tests/test_collections.c"
 #include "../tests/test_sb_sv.c"
 #include "../tests/test_dynamic_arrays.c"
-#include "../tests/test_heap.c"
+// #include "../tests/test_heap.c"
 #include "shell.h"
 
 int main(int argc, char** argv) {

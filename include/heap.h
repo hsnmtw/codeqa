@@ -50,7 +50,6 @@ void   __heap_compact(void);
 void*  ___calloc(size_t nmemb, size_t size, const char* file, const int line);
 // implementation
 
-
 #include "heap.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -393,7 +392,6 @@ void* ___reallocarray(void* _Nullable_ptr, size_t nmemb, size_t size,
 
     return ___realloc(_Nullable_ptr, nmemb * size, file, line);
 }
-
 
 #define MALLOC(p)            malloc(p)           //___malloc(p,    __FILE__,__LINE__)
 #define FREE(p)              free(p)             //___free(p,    __FILE__,__LINE__)
