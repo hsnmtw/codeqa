@@ -40,8 +40,8 @@ TEST(t_map__overwrite_key) {
     int a = 1, b = 2;
     map_set(&m, "x", &a);
     map_set(&m, "x", &b);
-    EXPECT_INT(*(int*)map_get(&m, "x"), 2);
-    EXPECT_INT((int)m.len, 1);   // no duplicate
+    EXPECT_INT(2, *(int*)map_get(&m, "x"));
+    EXPECT_INT(1, (int)m.len);   // no duplicate
     map_free(&m);
 }
 
@@ -52,7 +52,7 @@ TEST(t_map__multiple_keys) {
     const char* keys[5] = {"alpha","beta","gamma","delta","epsilon"};
     for (int i = 0; i < 5; i++) map_set(&m, keys[i], &vals[i]);
     for (int i = 0; i < 5; i++)
-        EXPECT_INT(*(int*)map_get(&m, keys[i]), vals[i]);
+        EXPECT_INT(vals[i], *(int*)map_get(&m, keys[i]));
     map_free(&m);
 }
 
@@ -130,7 +130,7 @@ TEST(t_map__null_value) {
     map_set(&m, "nullkey", NULL);
     // key exists but value is NULL — get returns NULL either way,
     // so we verify via len
-    EXPECT_INT((int)m.len, 1);
+    EXPECT_INT(1, (int)m.len);
     map_free(&m);
 }
 

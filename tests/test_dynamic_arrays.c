@@ -7,7 +7,7 @@
 
 static char* to_upper(const char* s, size_t index) {
     (void)index;
-    char* out = STRDUP(s);
+    char* out = strdup(s);
     for (char* p = out; *p; p++) *p = (char)toupper((unsigned char)*p);
     return out;
 }
