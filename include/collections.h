@@ -28,6 +28,7 @@ typedef struct {
     char* key;
     void* value;
     bool  taken;
+    char  _pad[7]; // 7 bytes — offset 17 → total = 24, multiple of 8
 } Pair;
 
 typedef struct {
@@ -265,6 +266,7 @@ void map_set(Map* map, const char* key, const void* value) {
 
     if (is_live(map->items[slot])) {
         // update existing key — free old value if owned, here we just overwrite
+        //if (map->items[slot].value) FREE(map->items[slot].value);
         map->items[slot].value = (void*)value;
         return;
     }
@@ -354,16 +356,22 @@ void da_push(DynamicArray *da, const char *value) {
 
         char **new_items;
 
-        if (da->stack || da->capacity == 0) {
+        if (da->stack || da->capacity == 0 || !da->items) {
             // printf("MALLOC [stack: %s] [items: %p] [len: %zu] [capacity: %zu]\n", da->stack ? "yes": "no",da->items, da->len, da->capacity);
 
             // first grow from stack — must copy to heap manually
             new_items = MALLOC(new_cap * sizeof(char *));
             if (!new_items) { 
-                err("%s: OOM", f_name);
-                return;
+                err("%s:%d [%s]: OOM", __FILE__,__LINE__,f_name);
+                // PRINT_MEMORY();
+                // abort();
+                // asm("int3");
             }
-            memcpy(new_items, da->items, da->len * sizeof(char *));
+            if (!da->items) {
+                da->items = new_items;
+            } else {
+                memcpy(new_items, da->items, da->len * sizeof(char *));
+            }
         } else {
             // printf("REALLOC [stack: %s] [items: %p] [len: %zu] [capacity: %zu]\n", da->stack ? "yes": "no",da->items, da->len, da->capacity);
             new_items = REALLOC(da->items, new_cap * sizeof(char *));

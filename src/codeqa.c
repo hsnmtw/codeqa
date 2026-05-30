@@ -85,7 +85,7 @@ void print_options(Options* options) {
 #include "../tests/test_collections.c"
 #include "../tests/test_sb_sv.c"
 #include "../tests/test_dynamic_arrays.c"
-// #include "../tests/test_heap.c"
+#include "../tests/test_heap.c"
 #include "shell.h"
 
 int main(int argc, char** argv) {
@@ -117,10 +117,9 @@ int main(int argc, char** argv) {
     // da_free(&unique);
 
     test_map();
-    __heap_compact();
     test_sb_sv();
     test_dynamic_arrays();
-    // test_heap();
+    test_heap();
 
 
     printf("\n\n  [ UNIT TESTS ] %d passed, %d failed\n\n", passed, failed);

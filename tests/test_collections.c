@@ -207,7 +207,7 @@ TEST(t_map__read_stream_file) {
     unsigned char word[128] = {0};
     size_t word_len = 0;
     const size_t BUF_SIZE = 224;
-    unsigned char* buffer = CALLOC(BUF_SIZE, sizeof(char));
+    unsigned char buffer[BUF_SIZE];
     
     Map map;
     map_init(&map);
@@ -253,10 +253,11 @@ TEST(t_map__read_stream_file) {
         mss += sw.ms;
         sw.ms = 0;
         fclose(f);
-
+        
+        __heap_compact();
     }
 
-    FREE(buffer);
+    // FREE(buffer);
 
     DynamicArray keys = {0};
     map_keys(&map,&keys);
@@ -294,20 +295,24 @@ int test_map(void) {
     puts("Map tests");
     puts("=========");
 
-    RUN(t_map__init);
-    RUN(t_map__set_and_get);
-    RUN(t_map__get_missing_key);
-    RUN(t_map__overwrite_key);
-    RUN(t_map__multiple_keys);
-    RUN(t_map__len_tracking);
-    RUN(t_map__rehash_on_growth);
-    RUN(t_map__empty_string_key);
-    RUN(t_map__long_key);
-    RUN(t_map__collision_keys);
-    RUN(t_map__null_value);
-    RUN(t_map__free_reuse);
-    RUN(t_map__read_entire_file);
-    RUN(t_map__read_stream_file);
+    reset_memory(); 
+     RUN(t_map__init);
+     RUN(t_map__set_and_get);
+     RUN(t_map__get_missing_key);
+     RUN(t_map__overwrite_key);
+     RUN(t_map__multiple_keys);
+     RUN(t_map__len_tracking);
+     RUN(t_map__rehash_on_growth);
+     RUN(t_map__empty_string_key);
+     RUN(t_map__long_key);
+     RUN(t_map__collision_keys);
+     RUN(t_map__null_value);
+     RUN(t_map__free_reuse);
+     reset_memory();
+     RUN(t_map__read_entire_file);
+     reset_memory();
+     RUN(t_map__read_stream_file);
+    
     printf("\n=========================================================");
     return failed ? 1 : 0;
 }

@@ -2,7 +2,7 @@
 #define HEAP_H_
 
 #define MEMORY_SIZE 14*1024*1024
-#define CHUNKS_SIZE 128*1000
+#define CHUNK_CAP 218*1024
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -26,11 +26,12 @@ typedef struct {
 } Chunk;
 
 typedef struct {
-    Chunk  chunks[CHUNKS_SIZE];
+    Chunk  chunks[CHUNK_CAP];
     size_t count;
-} Memory;
+} Chunks;
 
-static Memory  memory = {0};
+static Chunks  used_chunks = {0};
+
 static uint8_t _heap[MEMORY_SIZE] = {0};
 static bool _heap_wrn = true;
 static bool _heap_trc = false;
@@ -58,10 +59,9 @@ void*  ___calloc(size_t nmemb, size_t size, const char* file, const int line);
 #include <assert.h>
 #include "logger.h"
 
-
 // reset allocator state between tests
 void reset_memory(void) {
-    memset(&memory, 0, sizeof(memory));
+    memset(&used_chunks, 0, sizeof(used_chunks));
     memset(_heap,   0, MEMORY_SIZE);
 }
 
@@ -74,29 +74,29 @@ bool in_heap(void* ptr) {
 // count live (non-free) chunks
 size_t heap_used_count(void) {
     size_t n = 0;
-    for (size_t i = 0; i < memory.count; i++)
-        if (memory.chunks[i].used) n++;
+    for (size_t i = 0; i < used_chunks.count; i++)
+        if (used_chunks.chunks[i].used) n++;
     return n;
 }
 
 // count free chunks
 size_t heap_free_count(void) {
     size_t n = 0;
-    for (size_t i = 0; i < memory.count; i++)
-        if (!memory.chunks[i].used) n++;
+    for (size_t i = 0; i < used_chunks.count; i++)
+        if (!used_chunks.chunks[i].used) n++;
     return n;
 }
 
 // check no two live chunks overlap
 bool free_no_overlap(void) {
-    for (size_t i = 0; i < memory.count; i++) {
-        if (!memory.chunks[i].used) continue;
-        for (size_t j = i + 1; j < memory.count; j++) {
-            if (!memory.chunks[j].used) continue;
-            uint8_t* a_start = memory.chunks[i].ptr;
-            uint8_t* a_end   = a_start + memory.chunks[i].size;
-            uint8_t* b_start = memory.chunks[j].ptr;
-            uint8_t* b_end   = b_start + memory.chunks[j].size;
+    for (size_t i = 0; i < used_chunks.count; i++) {
+        if (!used_chunks.chunks[i].used) continue;
+        for (size_t j = i + 1; j < used_chunks.count; j++) {
+            if (!used_chunks.chunks[j].used) continue;
+            uint8_t* a_start = used_chunks.chunks[i].ptr;
+            uint8_t* a_end   = a_start + used_chunks.chunks[i].size;
+            uint8_t* b_start = used_chunks.chunks[j].ptr;
+            uint8_t* b_end   = b_start + used_chunks.chunks[j].size;
             if (a_start < b_end && b_start < a_end) return false;
         }
     }
@@ -139,8 +139,8 @@ void* ___memmove(void* dest, const void* src, size_t n, const char* file, int li
 
     // -- validate dest chunk is live ------------------------------------------
     bool dest_live = false;
-    for (size_t i = 0; i < memory.count; ++i) {
-        Chunk* c = &memory.chunks[i];
+    for (size_t i = 0; i < used_chunks.count; ++i) {
+        Chunk* c = &used_chunks.chunks[i];
         if (!c->used) continue;
         if (d >= c->ptr && d + n <= c->ptr + c->size) {
             dest_live = true;
@@ -155,8 +155,8 @@ void* ___memmove(void* dest, const void* src, size_t n, const char* file, int li
 
     // -- validate src chunk is live -------------------------------------------
     bool src_live = false;
-    for (size_t i = 0; i < memory.count; ++i) {
-        Chunk* c = &memory.chunks[i];
+    for (size_t i = 0; i < used_chunks.count; ++i) {
+        Chunk* c = &used_chunks.chunks[i];
         if (!c->used) continue;
         if (s >= c->ptr && s + n <= c->ptr + c->size) {
             src_live = true;
@@ -190,9 +190,9 @@ void* ___memmove(void* dest, const void* src, size_t n, const char* file, int li
 
 void ___print_memory () {
     dbg("[mem] ------------ MEMORY REPORT ----------------------------------");
-    for (int i=0;i<memory.count;++i) {
-        Chunk c = memory.chunks[i];
-        if (c.used) dbg("[mem] ptr = %15p | %-4zu | %s:%d", c.ptr, c.size, c.file, c.line);
+    for (int i=0;i<used_chunks.count;++i) {
+        Chunk c = used_chunks.chunks[i];
+        if (c.used) dbg("[mem] %-5d ptr = %15p | %-4zu | %s:%d %s",i, c.ptr, c.size, c.file, c.line, (char*)c.ptr);
     }
     dbg("[mem] ------------ MEMORY CONTENT ----------------------------------");
     // for(size_t i=0;i<MEMORY_SIZE;++i){
@@ -207,55 +207,60 @@ void ___print_memory () {
 }
 
 
-void *___malloc(size_t size, const char* file, const int line) {
-    
-    if (size == 0) {
-        if (_heap_wrn) wrn("attempt to alloc %zu bytes in memory would not be accepted, %s:%d", size, file, line);
+#define ALIGN     (8)
+#define ALIGN_UP(n) (((n) + (ALIGN - 1)) & ~(ALIGN - 1))
+
+void* ___malloc(size_t size_in_bytes, const char* file, const int line) {
+    if (size_in_bytes == 0) {
+        wrn("[mem/alloc] requested zero-sized alloc");
         return NULL;
     }
-    
-    // CORRECT
-    if (memory.count >= CHUNKS_SIZE) {
-        if (_heap_wrn) wrn("[mem/alloc] chunk table full (%s:%d)", file, line);
+    if (used_chunks.count >= CHUNK_CAP) {
+        wrn("[mem/alloc] OOM");
         return NULL;
     }
 
-    if (memory.chunks[memory.count].used) {
-        if (_heap_wrn) wrn("[mem/alloc] chunk table is overwritten !! (%s:%d) by previous call at (%s:%d)",
-            file,
-            line,
-            memory.chunks[memory.count].file,
-            memory.chunks[memory.count].line);
+    // round up size to alignment boundary
+    size_t size = ALIGN_UP(size_in_bytes);   // ← add this
+
+    if (used_chunks.count > 0) {
+        // scan for reusable freed slot
+        for (size_t i = 0; i < used_chunks.count ; ++i) {
+            if (!used_chunks.chunks[i].used && used_chunks.chunks[i].size >= size) {
+                used_chunks.chunks[i].used = true;
+                used_chunks.chunks[i].file = (char*)file;
+                used_chunks.chunks[i].line = line;
+                return (void*)used_chunks.chunks[i].ptr;
+            }
+        }
     }
 
-    // // scan for a freed slot that fits — reuse it
-    // for (size_t i = 0; i < memory.count; ++i) {
-    //     if (!memory.chunks[i].used && memory.chunks[i].size >= size) {
-    //         memory.chunks[i].used = true;
-    //         memory.chunks[i].file = (char*)file;
-    //         memory.chunks[i].line = line;
-    //         memory.chunks[i].size = size;  // keep or trim to requested size
-    //         if (_heap_trc) trc("[mem/alloc] reuse slot %zu  ptr=%p  size=%zu (%s:%d)",
-    //                            i, memory.chunks[i].ptr, size, file, line);
-    //         return (void*)memory.chunks[i].ptr;
-    //     }
-    // }
-    
-    
-    const Chunk last = memory.count == 0 ? ((Chunk){&_heap[0]}) : memory.chunks[memory.count-1];
-    uint8_t* ptr = last.ptr + last.size;
+    // fresh append — align the pointer too
+    uint8_t* ptr = _heap;
+    if (used_chunks.count > 0) {
+        Chunk* last = &used_chunks.chunks[used_chunks.count - 1];
+        ptr = last->ptr + last->size;
+    }
+
+    // align ptr to ALIGN boundary
+    uintptr_t aligned = (uintptr_t)ptr;
+    uintptr_t rem     = aligned % ALIGN;
+    if (rem != 0) {
+        aligned += ALIGN - rem;
+        ptr      = (uint8_t*)aligned;
+    }
 
     if (ptr + size > _heap + MEMORY_SIZE) {
-        if (_heap_wrn) err("[mem/alloc] OOM (%s:%d)", file, line);
+        if (_heap_wrn) err("[mem] OOM (%s:%d)", file, line);
         return NULL;
     }
 
-    memory.chunks[memory.count++] = (Chunk) { ptr, size, (char*)file, line, true };
+    used_chunks.chunks[used_chunks.count++] = (Chunk){ ptr, size, (char*)file, line, true };
     return (void*)ptr;
 }
 
 char* ___strdup(const char* str, const char* file, int line) {
-    if (str == NULL) return NULL;
+    if (!str) return NULL;
     size_t len = strlen(str) + 1;
     char*  buf = (char*)___malloc(len, file, line);
     if (!buf) return NULL;
@@ -263,34 +268,10 @@ char* ___strdup(const char* str, const char* file, int line) {
     return buf;
 }
 
-// void ___free(void *_Nullable_ptr, const char* file, const int line) {
-//     if (memory.count == 0) {
-//         if (_heap_wrn) wrn("[mem/free] nothing is allocated yet %s:%d",file,line);
-//         return;
-//     }
-//     // after freeing a chunk, move all non-free chunks next to it to the left
-//     if (_Nullable_ptr == NULL) {
-//         if (_heap_wrn) wrn("[mem/free] attempting to free a NULL pointer from %s:%d",file,line);
-//         return;
-//     }
-//     uint8_t* ptr = (uint8_t*)_Nullable_ptr;
-//     //find the index of the chunk containing this pointer
-//     // size_t sum = 0;
-//     for (size_t i=0;i<memory.count;++i) {     
-//         // sum += memory.chunks[i].size;   
-//         if (memory.chunks[i].ptr == ptr) {
-//             if (_heap_trc) trc("free %p", ptr);
-//             memory.chunks[i].used = false;
-//             memset(ptr,0,memory.chunks[i].size);
-            
-//             return;
-//         }
-//     }
-//     if (_heap_wrn) wrn("[mem/free] failed to locate pointer (%p) from %s:%d",_Nullable_ptr,file,line);
-// }
+
 
 void ___free(void *_Nullable_ptr, const char* file, const int line) {
-    if (memory.count == 0) {
+    if (used_chunks.count == 0) {
         if (_heap_wrn) wrn("[mem/free] nothing is allocated yet %s:%d",file,line);
         return;
     }
@@ -300,10 +281,13 @@ void ___free(void *_Nullable_ptr, const char* file, const int line) {
         return;
     }
     const uint8_t* ptr = (uint8_t*)_Nullable_ptr;
-    for (int i=0;i<memory.count;++i) {     
-        if (memory.chunks[i].ptr == ptr) {
-            memory.chunks[i].used = false;
-            if(_heap_trc) trc("free %p", memory.chunks[i].ptr);
+    
+    
+    for (int i=used_chunks.count-1;i>=0;--i) {     
+        if (used_chunks.chunks[i].ptr == ptr) {
+            used_chunks.chunks[i].used = false;
+            if(_heap_trc) trc("free %p", ptr);
+            memset(used_chunks.chunks[i].ptr,0,used_chunks.chunks[i].size);
             return;
         }
     }
@@ -311,25 +295,44 @@ void ___free(void *_Nullable_ptr, const char* file, const int line) {
 }
 
 
-// compact — call explicitly when you want to defragment
 void __heap_compact(void) {
-    size_t write = 0;
-    for (size_t i = 0; i < memory.count; ++i) {
-        if (!memory.chunks[i].used) continue;
+    size_t heap_write = 0;   // tracks heap cursor
+    size_t tbl_write  = 0;   // tracks chunk table cursor
 
-        size_t read = (size_t)(memory.chunks[i].ptr - _heap);
-        if (read != write) {
-            memmove(_heap + write, _heap + read, memory.chunks[i].size);
-            memory.chunks[i].ptr = _heap + write;
+    for (size_t i = 0; i < used_chunks.count; ++i) {
+        if (!used_chunks.chunks[i].used) continue;
+
+        uint8_t* src = used_chunks.chunks[i].ptr;
+        size_t   sz  = used_chunks.chunks[i].size;
+
+        // guard: ptr must be inside heap
+        if (src < _heap || src + sz > _heap + MEMORY_SIZE) {
+            wrn("[mem/compact] chunk %zu has out-of-bounds ptr %p — skipped", i, src);
+            continue;
         }
-        memory.chunks[write++] = memory.chunks[i];  // pack chunk table too
+
+        // shift heap data if there is a gap
+        if (src != _heap + heap_write) {
+            memmove(_heap + heap_write, src, sz);
+        }
+
+        // copy chunk record into packed position THEN update ptr
+        used_chunks.chunks[tbl_write]      = used_chunks.chunks[i];   // copy full record
+        used_chunks.chunks[tbl_write].ptr  = _heap + heap_write; // fix ptr AFTER copy
+
+        heap_write += sz;
+        tbl_write++;
     }
-    // zero out reclaimed space and clear stale chunk slots
-    size_t new_used = 0;
-    for (size_t i = 0; i < write; i++) new_used += memory.chunks[i].size;
-    memset(_heap + new_used, 0, MEMORY_SIZE - new_used);
-    for (size_t i = write; i < memory.count; i++) memory.chunks[i] = (Chunk){0};
-    memory.count = write;
+
+    // zero reclaimed heap region
+    if (heap_write < MEMORY_SIZE)
+        memset(_heap + heap_write, 0, MEMORY_SIZE - heap_write);
+
+    // clear stale chunk slots
+    for (size_t i = tbl_write; i < used_chunks.count; ++i)
+        used_chunks.chunks[i] = (Chunk){0};
+
+    used_chunks.count = tbl_write;
 }
 
 void* ___calloc(size_t nmemb, size_t size,
@@ -359,9 +362,9 @@ void* ___realloc(void* _Nullable_ptr, size_t size,
     if (size == 0) { ___free(_Nullable_ptr, file, line); return NULL; }
 
     int index = -1;
-    for (int i = 0; i < (int)memory.count; ++i) {
-        if (memory.chunks[i].ptr == (uint8_t*)_Nullable_ptr &&
-            memory.chunks[i].used) {          // ← must be live
+    for (int i = 0; i < (int)used_chunks.count; ++i) {
+        if (used_chunks.chunks[i].ptr == (uint8_t*)_Nullable_ptr &&
+            used_chunks.chunks[i].used) {          // ← must be live
             index = i;
             break;
         }
@@ -374,18 +377,18 @@ void* ___realloc(void* _Nullable_ptr, size_t size,
     }
 
     // -- shrink in place ------------------------------------------------------
-    if (memory.chunks[index].size >= size) {
-        memset((uint8_t*)memory.chunks[index].ptr + size, 0,
-               memory.chunks[index].size - size);
-        memory.chunks[index].size = size;
-        memory.chunks[index].file = (char*)file;
-        memory.chunks[index].line = line;
-        return memory.chunks[index].ptr;
+    if (used_chunks.chunks[index].size >= size) {
+        memset((uint8_t*)used_chunks.chunks[index].ptr + size, 0,
+               used_chunks.chunks[index].size - size);
+        used_chunks.chunks[index].size = size;
+        used_chunks.chunks[index].file = (char*)file;
+        used_chunks.chunks[index].line = line;
+        return used_chunks.chunks[index].ptr;
     }
 
     // -- grow -----------------------------------------------------------------
-    size_t  old_size = memory.chunks[index].size;
-    uint8_t* old_ptr = memory.chunks[index].ptr;
+    size_t  old_size = used_chunks.chunks[index].size;
+    uint8_t* old_ptr = used_chunks.chunks[index].ptr;
 
     if (!old_ptr) {                           // ← guard NULL old_ptr
         wrn("[mem/realloc] chunk has NULL ptr (%s:%d)", file, line);
@@ -395,12 +398,12 @@ void* ___realloc(void* _Nullable_ptr, size_t size,
     uint8_t tmp[old_size];
     memcpy(tmp, old_ptr, old_size);           // snapshot before mutation
 
-    memory.chunks[index].used = false;
+    used_chunks.chunks[index].used = false;
     memset(old_ptr, 0, old_size);
 
     void* new_ptr = ___malloc(size, file, line);
     if (!new_ptr) {                           // ← guard NULL new_ptr
-        memory.chunks[index].used = true;     // rollback
+        used_chunks.chunks[index].used = true;     // rollback
         memcpy(old_ptr, tmp, old_size);
         wrn("[mem/realloc] OOM growing %p %zu→%zu (%s:%d)",
             old_ptr, old_size, size, file, line);

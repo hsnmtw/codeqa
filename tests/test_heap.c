@@ -95,7 +95,7 @@ TEST(malloc_returns_null_when_oom) {
 TEST(malloc_returns_null_when_chunks_full) {
     reset_memory();
     // fill chunk table with 1-byte allocs
-    for (size_t i = 0; i < CHUNKS_SIZE; i++) MALLOC(1);
+    for (size_t i = 0; i < CHUNK_CAP; i++) MALLOC(1);
     void* p = MALLOC(1);
     EXPECT_NULL(p);
 }
@@ -144,14 +144,14 @@ TEST(malloc_does_not_reuse_slot_too_small) {
     // p2 should be a fresh allocation, not p1
     EXPECT_NOT_NULL(p1);
 
-    EXPECT(p2 == p1);
+    EXPECT(p2 != p1);
     EXPECT(p2 != NULL);
 }
 
 TEST(malloc_chunk_file_and_line_recorded) {
     reset_memory();
     MALLOC(8);
-    bool ok = memory.chunks[0].file != NULL && memory.chunks[0].line > 0;
+    bool ok = used_chunks.chunks[0].file != NULL && used_chunks.chunks[0].line > 0;
     EXPECT(ok);
 }
 
@@ -520,10 +520,10 @@ TEST(realloc_returns_null_on_oom) {
 TEST(realloc_chunk_count_stable_on_shrink) {
     reset_memory();
     MALLOC(64);
-    size_t before = memory.count;
+    size_t before = used_chunks.count;
     void* p = MALLOC(64);
     (void)REALLOC(p, 32);
-    EXPECT_INT((int)memory.count, (int)before + 1);
+    EXPECT_INT((int)used_chunks.count, (int)before + 1);
 }
 
 // =============================================================================

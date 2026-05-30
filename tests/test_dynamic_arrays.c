@@ -468,6 +468,8 @@ int test_dynamic_arrays(void) {
     printf("DynamicArray tests");
     printf("\n==================");
 
+    reset_memory();
+
     RUN(da_init_sets_defaults);
     RUN(da_push_increments_len);
     RUN(da_pop_returns_last);

@@ -1,0 +1,18 @@
+[1;44;40m TRC: [0m SHELL: [whoami] 
+[1;42;37m INF: [0m  out: hsn
+
+Map tests
+=========
+
+  [t_map__init                                  ] [1;42;37m ✓ [0m 
+  [t_map__set_and_get                           ] [1;42;37m ✓ [0m 
+  [t_map__get_missing_key                       ] [1;42;37m ✓ [0m 
+  [t_map__overwrite_key                         ] [1;42;37m ✓ [0m [1;42;37m ✓ [0m 
+  [t_map__multiple_keys                         ] [1;42;37m ✓ [0m [1;42;37m ✓ [0m [1;42;37m ✓ [0m [1;42;37m ✓ [0m [1;42;37m ✓ [0m 
+  [t_map__len_tracking                          ] [1;42;37m ✓ [0m 
+  [t_map__rehash_on_growth                      ] [1;42;37m ✓ [0m 
+  [t_map__empty_string_key                      ] [1;42;37m ✓ [0m 
+  [t_map__long_key                              ] [1;42;37m ✓ [0m 
+  [t_map__collision_keys                        ] [1;42;37m ✓ [0m [1;42;37m ✓ [0m [1;42;37m ✓ [0m 
+  [t_map__null_value                            ] [1;42;37m ✓ [0m 
+  [t_map__fr

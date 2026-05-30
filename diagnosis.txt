@@ -1,0 +1,1 @@
+clang -I./include -o ./bin/codeqa.out  ./src/codeqa.c -ggdb -fsanitize=address,undefined -fno-omit-frame-pointer

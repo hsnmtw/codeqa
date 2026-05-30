@@ -232,6 +232,8 @@ int test_sb_sv(void) {
     printf("StringBuilder tests");
     printf("\n===================");
 
+    reset_memory();
+
     RUN(t_sb_sv__init);
     RUN(t_sb_sv__append_plain);
     RUN(t_sb_sv__append_format);
