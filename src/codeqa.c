@@ -128,9 +128,10 @@ int main(int argc, char** argv) {
     // mem_stats();   // heap utilization
     // mem_report();  // leaks + overflow detection
 
-    // EXPECT_INT((int)heap_used_count(),0);
-    // PRINT_MEMORY();
+    EXPECT_INT((int)heap_used_count(),0);
+    PRINT_MEMORY();
 
     dbg("------------------------ TESTING ERROR COLORS\nExit normally");
     return 0;
 }
+
