@@ -395,13 +395,13 @@ void* ___reallocarray(void* _Nullable_ptr, size_t nmemb, size_t size,
 }
 
 
-#define MALLOC       malloc       // (p)             ___malloc(p,    __FILE__,__LINE__)
-#define FREE         free         // (p)               ___free(p,    __FILE__,__LINE__)
-#define CALLOC       calloc       // (n,s)           ___calloc(n,s,  __FILE__,__LINE__)
-#define REALLOC      realloc      // (p,s)          ___realloc(p,s,  __FILE__,__LINE__)
-#define REALLOCARRAY reallocarray // (p,n,s)   ___reallocarray(p,n,s,__FILE__,__LINE__)
-#define STRDUP       strdup       // (s)             ___strdup(s,   __FILE__, __LINE__)
-#define MEMMOVE      memmove      // (d,s,n)        ___memmove(d,s,n,__FILE__,__LINE__)
+#define MALLOC(p)            malloc(p)           //___malloc(p,    __FILE__,__LINE__)
+#define FREE(p)              free(p)             //___free(p,    __FILE__,__LINE__)
+#define CALLOC(n,s)          calloc(n,s)         //___calloc(n,s,  __FILE__,__LINE__)
+#define REALLOC(p,s)         realloc(p,s)        //___realloc(p,s,  __FILE__,__LINE__)
+#define REALLOCARRAY(p,n,s)  reallocarray(p,n,s) //___reallocarray(p,n,s,__FILE__,__LINE__)
+#define STRDUP(s)            strdup(s)           //___strdup(s,   __FILE__, __LINE__)
+#define MEMMOVE(d,s,n)       memmove(d,s,n)      //___memmove(d,s,n,__FILE__,__LINE__)
 #define PRINT_MEMORY()        ___print_memory ()
 
 

@@ -500,7 +500,7 @@ TEST(realloc_same_size_is_noop) {
 
 TEST(realloc_unknown_ptr_returns_null) {
     reset_memory();
-    uint8_t garbage[32] = {0};
+    uint8_t* garbage = NULL;
     void* r = REALLOC(garbage, 64);
     EXPECT_NULL(r);
 }
