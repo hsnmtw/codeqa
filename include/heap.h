@@ -4,12 +4,9 @@
 #define MEMORY_SIZE 64*1024*1024
 #define CHUNKS_SIZE 128*1000
 
-#include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <assert.h>
-#include "logger.h"
+#include <stdbool.h>
 
 #define UNIMPLEMENTED do {         \
     fprintf(stderr,                \
@@ -39,38 +36,44 @@ static bool _heap_wrn = true;
 static bool _heap_trc = false;
 
 // interface
-    // void *_malloc(size_t size);
-    // void _free(void *_Nullable_ptr);
-    // void *_calloc(size_t nmemb, size_t size);
-    // void *_realloc(void *_Nullable_ptr, size_t size);
-    // void *_reallocarray(void *_Nullable_ptr, size_t nmemb, size_t size);
+void reset_memory(void);
+bool in_heap(void* ptr);
+size_t heap_used_count(void);
+size_t heap_free_count(void);
+bool    free_no_overlap(void);
+void*  ___memmove(void* dest, const void* src, size_t n, const char* file, int line);
+void   ___print_memory();
+void*  ___malloc(size_t size, const char* file, const int line);
+char*  ___strdup(const char* str, const char* file, int line);
+void   ___free(void *_Nullable_ptr, const char* file, const int line);
+void   __heap_compact(void);
+void*  ___calloc(size_t nmemb, size_t size, const char* file, const int line);
 // implementation
 
-#define MALLOC(p)             ___malloc       (p,    __FILE__,__LINE__)
-#define FREE(p)               ___free         (p,    __FILE__,__LINE__)
-#define CALLOC(n,s)           ___calloc       (n,s,  __FILE__,__LINE__)
-#define REALLOC(p,s)          ___realloc      (p,s,  __FILE__,__LINE__)
-#define REALLOCARRAY(p,n,s)   ___reallocarray (p,n,s,__FILE__,__LINE__)
-#define PRINT_MEMORY()        ___print_memory ()
-#define STRDUP(s)             ___strdup       (s,   __FILE__, __LINE__)
-#define MEMMOVE(d,s,n)        ___memmove      (d,s,n,__FILE__,__LINE__)
 
+#include "heap.h"
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <assert.h>
+#include "logger.h"
 
 
 // reset allocator state between tests
-static void reset_memory(void) {
+void reset_memory(void) {
     memset(&memory, 0, sizeof(memory));
     memset(_heap,   0, MEMORY_SIZE);
 }
 
 // check pointer is inside heap bounds
-static bool in_heap(void* ptr) {
+bool in_heap(void* ptr) {
     return (uint8_t*)ptr >= _heap &&
            (uint8_t*)ptr <  _heap + MEMORY_SIZE;
 }
 
 // count live (non-free) chunks
-static size_t heap_used_count(void) {
+size_t heap_used_count(void) {
     size_t n = 0;
     for (size_t i = 0; i < memory.count; i++)
         if (memory.chunks[i].used) n++;
@@ -78,7 +81,7 @@ static size_t heap_used_count(void) {
 }
 
 // count free chunks
-static size_t heap_free_count(void) {
+size_t heap_free_count(void) {
     size_t n = 0;
     for (size_t i = 0; i < memory.count; i++)
         if (!memory.chunks[i].used) n++;
@@ -86,7 +89,7 @@ static size_t heap_free_count(void) {
 }
 
 // check no two live chunks overlap
-static bool free_no_overlap(void) {
+bool free_no_overlap(void) {
     for (size_t i = 0; i < memory.count; i++) {
         if (!memory.chunks[i].used) continue;
         for (size_t j = i + 1; j < memory.count; j++) {
@@ -104,7 +107,7 @@ static bool free_no_overlap(void) {
 
 
 
-static inline void* ___memmove(void* dest, const void* src, size_t n, const char* file, int line) {
+void* ___memmove(void* dest, const void* src, size_t n, const char* file, int line) {
     if (!dest || !src) {
         if (_heap_wrn) wrn("[mem/memmove] NULL pointer  dest=%p src=%p (%s:%d)",
                            dest, src, file, line);
@@ -186,7 +189,7 @@ static inline void* ___memmove(void* dest, const void* src, size_t n, const char
     return dest;
 }
 
-static inline void ___print_memory () {
+void ___print_memory () {
     dbg("[mem] ------------ MEMORY REPORT ----------------------------------");
     for (int i=0;i<memory.count;++i) {
         Chunk c = memory.chunks[i];
@@ -205,7 +208,7 @@ static inline void ___print_memory () {
 }
 
 
-static inline void *___malloc(size_t size, const char* file, const int line) {
+void *___malloc(size_t size, const char* file, const int line) {
     
     if (size == 0) {
         if (_heap_wrn) wrn("attempt to alloc %zu bytes in memory would not be accepted, %s:%d", size, file, line);
@@ -252,7 +255,7 @@ static inline void *___malloc(size_t size, const char* file, const int line) {
     return (void*)ptr;
 }
 
-static inline char* ___strdup(const char* str, const char* file, int line) {
+char* ___strdup(const char* str, const char* file, int line) {
     if (str == NULL) return NULL;
     size_t len = strlen(str) + 1;
     char*  buf = (char*)___malloc(len, file, line);
@@ -261,7 +264,7 @@ static inline char* ___strdup(const char* str, const char* file, int line) {
     return buf;
 }
 
-static inline void ___free(void *_Nullable_ptr, const char* file, const int line) {
+void ___free(void *_Nullable_ptr, const char* file, const int line) {
     if (memory.count == 0) {
         if (_heap_wrn) wrn("[mem/free] nothing is allocated yet %s:%d",file,line);
         return;
@@ -274,7 +277,7 @@ static inline void ___free(void *_Nullable_ptr, const char* file, const int line
     uint8_t* ptr = (uint8_t*)_Nullable_ptr;
     //find the index of the chunk containing this pointer
     // size_t sum = 0;
-    for (int i=0;i<memory.count;++i) {     
+    for (size_t i=0;i<memory.count;++i) {     
         // sum += memory.chunks[i].size;   
         if (memory.chunks[i].ptr == ptr) {
             if (_heap_trc) trc("free %p", ptr);
@@ -288,7 +291,7 @@ static inline void ___free(void *_Nullable_ptr, const char* file, const int line
 
 
 // compact — call explicitly when you want to defragment
-static inline void __heap_compact(void) {
+void __heap_compact(void) {
     size_t write = 0;
     for (size_t i = 0; i < memory.count; ++i) {
         if (!memory.chunks[i].used) continue;
@@ -308,7 +311,7 @@ static inline void __heap_compact(void) {
     memory.count = write;
 }
 
-static inline void* ___calloc(size_t nmemb, size_t size,
+void* ___calloc(size_t nmemb, size_t size,
                              const char* file, const int line) {
     if (nmemb == 0 || size == 0) {
         if (_heap_wrn) wrn("[mem/calloc] zero nmemb or size (%s:%d)", file, line);
@@ -329,7 +332,7 @@ static inline void* ___calloc(size_t nmemb, size_t size,
     return ptr;
 }
 
-static inline void* ___realloc(void* _Nullable_ptr, size_t size,
+void* ___realloc(void* _Nullable_ptr, size_t size,
                               const char* file, const int line) {
     // realloc(NULL, size) == malloc(size)
     if (!_Nullable_ptr) return ___malloc(size, file, line);
@@ -375,7 +378,7 @@ static inline void* ___realloc(void* _Nullable_ptr, size_t size,
     return NULL;
 }
 
-static inline void* ___reallocarray(void* _Nullable_ptr, size_t nmemb, size_t size,
+void* ___reallocarray(void* _Nullable_ptr, size_t nmemb, size_t size,
                                    const char* file, const int line) {
     if (nmemb == 0 || size == 0) {
         if (_Nullable_ptr) ___free(_Nullable_ptr, file, line);
@@ -390,5 +393,16 @@ static inline void* ___reallocarray(void* _Nullable_ptr, size_t nmemb, size_t si
 
     return ___realloc(_Nullable_ptr, nmemb * size, file, line);
 }
+
+
+#define MALLOC       malloc       // (p)             ___malloc(p,    __FILE__,__LINE__)
+#define FREE         free         // (p)               ___free(p,    __FILE__,__LINE__)
+#define CALLOC       calloc       // (n,s)           ___calloc(n,s,  __FILE__,__LINE__)
+#define REALLOC      realloc      // (p,s)          ___realloc(p,s,  __FILE__,__LINE__)
+#define REALLOCARRAY reallocarray // (p,n,s)   ___reallocarray(p,n,s,__FILE__,__LINE__)
+#define STRDUP       strdup       // (s)             ___strdup(s,   __FILE__, __LINE__)
+#define MEMMOVE      memmove      // (d,s,n)        ___memmove(d,s,n,__FILE__,__LINE__)
+#define PRINT_MEMORY()        ___print_memory ()
+
 
 #endif// HEAP_H_

@@ -1,7 +1,7 @@
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #pragma GCC diagnostic ignored "-Wvariadic-macros"
 #pragma GCC diagnostic ignored "-Wformat-overflow"
-#pragma CC diagnostic ignored "-Wformat-overflow"
+// #pragma CC diagnostic ignored "-Wformat-overflow"
 
 #ifndef LOGGER_H_
 #define LOGGER_H_

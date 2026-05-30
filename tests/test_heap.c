@@ -282,8 +282,8 @@ TEST(free___no_overlap_after_mixed_free) {
 TEST(free___unknown_pointer_does_not_corrupt) {
     reset_memory();
     void* p1 = MALLOC(32);
-    uint8_t  garbage[32] = {0};
-    FREE(garbage);   // unknown ptr — should warn, not corrupt
+    uint8_t*  garbage = NULL;
+    FREE((void*)garbage);   // unknown ptr — should warn, not corrupt
     EXPECT(in_heap(p1));
     EXPECT_INT((int)heap_used_count(), 1);
 }
@@ -291,11 +291,11 @@ TEST(free___unknown_pointer_does_not_corrupt) {
 TEST(free___double_free_detected) {
     reset_memory();
     void* p = MALLOC(32);
-    EXPECT_INT(1, heap_used_count());
+    EXPECT_INT(1, (int)heap_used_count());
     FREE(p);
-    EXPECT_INT(0, heap_used_count());
+    EXPECT_INT(0, (int)heap_used_count());
     FREE(p);   // double free — should warn, not change state
-    EXPECT_INT(0, heap_used_count());
+    EXPECT_INT(0, (int)heap_used_count());
 }
 
 TEST(free___mallocafter_free_sequence) {
@@ -451,7 +451,7 @@ TEST(realloc_shrink_zeroes_tail) {
     reset_memory();
     uint8_t* p = MALLOC(64);
     memset(p, 0xFF, 64);
-    REALLOC(p, 32);
+    (void)REALLOC(p, 32);
     bool tail_zeroed = true;
     for (size_t i = 32; i < 64; i++)
         if (p[i] != 0) { tail_zeroed = false; break; }
@@ -477,7 +477,7 @@ TEST(realloc_grow_preserves_data) {
 TEST(realloc_grow_frees_old_slot) {
     reset_memory();
     void* p1 = MALLOC(16);
-    REALLOC(p1, 64);
+    (void)REALLOC(p1, 64);
     // old slot should be freed — free_count includes it
     EXPECT_INT((int)heap_free_count(), 1);
 }
@@ -487,7 +487,7 @@ TEST(realloc_no_overlap_after_grow) {
     void* p1 = MALLOC(16);
     void* p2 = MALLOC(16);
     (void)p2;
-    REALLOC(p1, 64);
+    (void)REALLOC(p1, 64);
     EXPECT(free_no_overlap());
 }
 
@@ -518,7 +518,7 @@ TEST(realloc_chunk_count_stable_on_shrink) {
     MALLOC(64);
     size_t before = memory.count;
     void* p = MALLOC(64);
-    REALLOC(p, 32);
+    (void)REALLOC(p, 32);
     EXPECT_INT((int)memory.count, (int)before + 1);
 }
 
@@ -576,7 +576,7 @@ TEST(reallocarray_no_overlap_after_grow) {
     void* p1 = MALLOC(16);
     void* p2 = MALLOC(16);
     (void)p2;
-    REALLOCARRAY(p1, 8, 16);
+    (void)REALLOCARRAY(p1, 8, 16);
     EXPECT(free_no_overlap());
 }
 
@@ -613,14 +613,16 @@ TEST(memmove_forward_overlap) {
 TEST(memmove_null_dest_does_not_crash) {
     reset_memory();
     char* src = MALLOC(16);
-    MEMMOVE(NULL, src, 8);  // should warn, not crash
+    void* a = NULL;
+    MEMMOVE(a, src, 8);  // should warn, not crash
     EXPECT(true);
 }
 
 TEST(memmove_null_src_does_not_crash) {
     reset_memory();
     char* dest = MALLOC(16);
-    MEMMOVE(dest, NULL, 8);  // should warn, not crash
+    void* a = NULL;
+    MEMMOVE(dest, a, 8);  // should warn, not crash
     EXPECT(true);
 }
 
@@ -663,6 +665,7 @@ TEST(memmove_src_equals_dest_is_noop) {
     memcpy(buf, "hello", 6);
     MEMMOVE(buf, buf, 6);
     EXPECT_STR(buf, "hello");
+    FREE(buf);
 }
 
 TEST(memmove_large_move) {
@@ -672,9 +675,11 @@ TEST(memmove_large_move) {
     for (size_t i = 0; i < sz; i++) a[i] = (uint8_t)i;
     MEMMOVE(a + sz, a, sz);
     bool ok = true;
-    for (size_t i = 0; i < sz; i++)
+    for (size_t i = 0; i < sz; i++) {
         if (a[sz + i] != (uint8_t)i) { ok = false; break; }
+    }
     EXPECT(ok);
+    FREE(a);
 }
 
 

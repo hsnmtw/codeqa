@@ -1,6 +1,6 @@
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #pragma GCC diagnostic ignored "-Wvariadic-macros"
-#pragma CC diagnostic ignored "-Wformat-overflow"
+// #pragma CC diagnostic ignored "-Wformat-overflow"
 
 #ifndef COMMON_H_
 #define COMMON_H_
