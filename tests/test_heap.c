@@ -62,7 +62,7 @@ TEST(malloc_chunk_count_increments) {
     MALLOC(8);
     MALLOC(8);
     MALLOC(8);
-    EXPECT_INT(heap_used_count(), 3);
+    EXPECT_INT((int)heap_used_count(), 3);
 }
 
 TEST(malloc_written_data_survives) {
@@ -189,7 +189,7 @@ TEST(free___free_marks_chunk_as_free) {
     reset_memory();
     void* p = MALLOC(32);
     FREE(p);
-    EXPECT_INT(heap_used_count(), 0);
+    EXPECT_INT((int)heap_used_count(), 0);
 }
 
 TEST(free___used_count_decreases_after_free) {
@@ -198,7 +198,7 @@ TEST(free___used_count_decreases_after_free) {
     void* p2 = MALLOC(16);
     (void)p1;
     FREE(p2);
-    EXPECT_INT(heap_used_count(), 1);
+    EXPECT_INT((int)heap_used_count(), 1);
 }
 
 TEST(free___free_first_of_three) {
@@ -208,8 +208,8 @@ TEST(free___free_first_of_three) {
     void* p3 = MALLOC(23);
     (void)p2; (void)p3;
     FREE(p1);
-    EXPECT_INT(heap_used_count(), 2);
-    EXPECT_INT(heap_used_count(), 2);
+    EXPECT_INT((int)heap_used_count(), 2);
+    EXPECT_INT((int)heap_used_count(), 2);
 }
 
 TEST(free___free_middle_of_three) {
@@ -219,7 +219,7 @@ TEST(free___free_middle_of_three) {
     void* p3 = MALLOC(23);
     (void)p1; (void)p3;
     FREE(p2);
-    EXPECT_INT(heap_used_count(), 2);
+    EXPECT_INT((int)heap_used_count(), 2);
 }
 
 TEST(free___free_last_of_three) {
@@ -228,9 +228,9 @@ TEST(free___free_last_of_three) {
     void* p2 = MALLOC(23);
     void* p3 = MALLOC(23);
     (void)p1; (void)p2;
-    EXPECT_INT(heap_used_count(), 3);
+    EXPECT_INT((int)heap_used_count(), 3);
     FREE(p3);
-    EXPECT_INT(heap_used_count(), 2);
+    EXPECT_INT((int)heap_used_count(), 2);
 }
 
 TEST(free___free_all_then_mallocsucceeds) {
@@ -262,11 +262,11 @@ TEST(free___sequential_free_p2_then_p3) {
     char* p2 = MALLOC(23);
     char* p3 = MALLOC(23);
     (void)p1;
-    EXPECT_INT(heap_used_count(), 3);
+    EXPECT_INT((int)heap_used_count(), 3);
     FREE(p2);
-    EXPECT_INT(heap_used_count(), 2);
+    EXPECT_INT((int)heap_used_count(), 2);
     FREE(p3);   // must not fail — core bug from original implementation
-    EXPECT_INT(heap_used_count(), 1);
+    EXPECT_INT((int)heap_used_count(), 1);
 }
 
 TEST(free___no_overlap_after_mixed_free) {
@@ -285,7 +285,7 @@ TEST(free___unknown_pointer_does_not_corrupt) {
     uint8_t  garbage[32] = {0};
     FREE(garbage);   // unknown ptr — should warn, not corrupt
     EXPECT(in_heap(p1));
-    EXPECT_INT(heap_used_count(), 1);
+    EXPECT_INT((int)heap_used_count(), 1);
 }
 
 TEST(free___double_free_detected) {
@@ -406,7 +406,7 @@ TEST(calloc_chunk_count_increments) {
     reset_memory();
     CALLOC(1, 8);
     CALLOC(1, 8);
-    EXPECT_INT(heap_used_count(), 2);
+    EXPECT_INT((int)heap_used_count(), 2);
 }
 
 TEST(calloc_zeroed_after_previous_dirty_free) {
@@ -436,7 +436,7 @@ TEST(realloc_zero_size_frees_ptr) {
     void* p = MALLOC(32);
     void* r = REALLOC(p, 0);
     EXPECT_NULL(r);
-    EXPECT_INT(heap_used_count(), 0);
+    EXPECT_INT((int)heap_used_count(), 0);
 }
 
 TEST(realloc_shrink_in_place) {
@@ -444,7 +444,7 @@ TEST(realloc_shrink_in_place) {
     void* p  = MALLOC(64);
     void* p2 = REALLOC(p, 32);
     EXPECT(p == p2);   // same address — shrank in place
-    EXPECT_INT(heap_used_count(), 1);
+    EXPECT_INT((int)heap_used_count(), 1);
 }
 
 TEST(realloc_shrink_zeroes_tail) {
@@ -479,7 +479,7 @@ TEST(realloc_grow_frees_old_slot) {
     void* p1 = MALLOC(16);
     REALLOC(p1, 64);
     // old slot should be freed — free_count includes it
-    EXPECT_INT(heap_free_count(), 1);
+    EXPECT_INT((int)heap_free_count(), 1);
 }
 
 TEST(realloc_no_overlap_after_grow) {
@@ -538,7 +538,7 @@ TEST(reallocarray_zero_nmemb_frees_ptr) {
     void* p = MALLOC(32);
     void* r = REALLOCARRAY(p, 0, 8);
     EXPECT_NULL(r);
-    EXPECT_INT(heap_used_count(), 0);
+    EXPECT_INT((int)heap_used_count(), 0);
 }
 
 TEST(reallocarray_zero_size_frees_ptr) {
