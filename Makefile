@@ -1,5 +1,5 @@
-CC      = clang
-CFLAGS  = -I./include -ggdb -fsanitize=memory
+CC      = gcc
+CFLAGS  = -I./include -O3 #-ggdb -fsanitize=memory
 TARGET  = ./bin/codeqa.out
 SRCS    = $(wildcard *.c) $(wildcard ./src/*.c)
 
