@@ -117,6 +117,7 @@ int main(int argc, char** argv) {
     // da_free(&unique);
 
     test_map();
+    __heap_compact();
     test_sb_sv();
     test_dynamic_arrays();
     // test_heap();

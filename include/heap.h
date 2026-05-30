@@ -1,7 +1,7 @@
 #ifndef HEAP_H_
 #define HEAP_H_
 
-#define MEMORY_SIZE 64*1024*1024
+#define MEMORY_SIZE 14*1024*1024
 #define CHUNKS_SIZE 128*1000
 
 #include <stdint.h>
@@ -228,18 +228,18 @@ void *___malloc(size_t size, const char* file, const int line) {
             memory.chunks[memory.count].line);
     }
 
-    // scan for a freed slot that fits — reuse it
-    for (size_t i = 0; i < memory.count; ++i) {
-        if (!memory.chunks[i].used && memory.chunks[i].size >= size) {
-            memory.chunks[i].used = true;
-            memory.chunks[i].file = (char*)file;
-            memory.chunks[i].line = line;
-            memory.chunks[i].size = size;  // keep or trim to requested size
-            if (_heap_trc) trc("[mem/alloc] reuse slot %zu  ptr=%p  size=%zu (%s:%d)",
-                               i, memory.chunks[i].ptr, size, file, line);
-            return (void*)memory.chunks[i].ptr;
-        }
-    }
+    // // scan for a freed slot that fits — reuse it
+    // for (size_t i = 0; i < memory.count; ++i) {
+    //     if (!memory.chunks[i].used && memory.chunks[i].size >= size) {
+    //         memory.chunks[i].used = true;
+    //         memory.chunks[i].file = (char*)file;
+    //         memory.chunks[i].line = line;
+    //         memory.chunks[i].size = size;  // keep or trim to requested size
+    //         if (_heap_trc) trc("[mem/alloc] reuse slot %zu  ptr=%p  size=%zu (%s:%d)",
+    //                            i, memory.chunks[i].ptr, size, file, line);
+    //         return (void*)memory.chunks[i].ptr;
+    //     }
+    // }
     
     
     const Chunk last = memory.count == 0 ? ((Chunk){&_heap[0]}) : memory.chunks[memory.count-1];
@@ -263,6 +263,32 @@ char* ___strdup(const char* str, const char* file, int line) {
     return buf;
 }
 
+// void ___free(void *_Nullable_ptr, const char* file, const int line) {
+//     if (memory.count == 0) {
+//         if (_heap_wrn) wrn("[mem/free] nothing is allocated yet %s:%d",file,line);
+//         return;
+//     }
+//     // after freeing a chunk, move all non-free chunks next to it to the left
+//     if (_Nullable_ptr == NULL) {
+//         if (_heap_wrn) wrn("[mem/free] attempting to free a NULL pointer from %s:%d",file,line);
+//         return;
+//     }
+//     uint8_t* ptr = (uint8_t*)_Nullable_ptr;
+//     //find the index of the chunk containing this pointer
+//     // size_t sum = 0;
+//     for (size_t i=0;i<memory.count;++i) {     
+//         // sum += memory.chunks[i].size;   
+//         if (memory.chunks[i].ptr == ptr) {
+//             if (_heap_trc) trc("free %p", ptr);
+//             memory.chunks[i].used = false;
+//             memset(ptr,0,memory.chunks[i].size);
+            
+//             return;
+//         }
+//     }
+//     if (_heap_wrn) wrn("[mem/free] failed to locate pointer (%p) from %s:%d",_Nullable_ptr,file,line);
+// }
+
 void ___free(void *_Nullable_ptr, const char* file, const int line) {
     if (memory.count == 0) {
         if (_heap_wrn) wrn("[mem/free] nothing is allocated yet %s:%d",file,line);
@@ -273,15 +299,11 @@ void ___free(void *_Nullable_ptr, const char* file, const int line) {
         if (_heap_wrn) wrn("[mem/free] attempting to free a NULL pointer from %s:%d",file,line);
         return;
     }
-    uint8_t* ptr = (uint8_t*)_Nullable_ptr;
-    //find the index of the chunk containing this pointer
-    // size_t sum = 0;
-    for (size_t i=0;i<memory.count;++i) {     
-        // sum += memory.chunks[i].size;   
+    const uint8_t* ptr = (uint8_t*)_Nullable_ptr;
+    for (int i=0;i<memory.count;++i) {     
         if (memory.chunks[i].ptr == ptr) {
-            if (_heap_trc) trc("free %p", ptr);
             memory.chunks[i].used = false;
-            memset(ptr,0,memory.chunks[i].size);
+            if(_heap_trc) trc("free %p", memory.chunks[i].ptr);
             return;
         }
     }
@@ -332,49 +354,61 @@ void* ___calloc(size_t nmemb, size_t size,
 }
 
 void* ___realloc(void* _Nullable_ptr, size_t size,
-                              const char* file, const int line) {
-    // realloc(NULL, size) == malloc(size)
+                 const char* file, const int line) {
     if (!_Nullable_ptr) return ___malloc(size, file, line);
+    if (size == 0) { ___free(_Nullable_ptr, file, line); return NULL; }
 
-    // realloc(ptr, 0) == free(ptr)
-    if (size == 0) {
-        ___free(_Nullable_ptr, file, line);
+    int index = -1;
+    for (int i = 0; i < (int)memory.count; ++i) {
+        if (memory.chunks[i].ptr == (uint8_t*)_Nullable_ptr &&
+            memory.chunks[i].used) {          // ← must be live
+            index = i;
+            break;
+        }
+    }
+
+    if (index == -1) {
+        wrn("[mem/realloc] ptr %p not found or already freed (%s:%d)",
+            _Nullable_ptr, file, line);
+        return NULL;                          // ← don't malloc on unknown ptr
+    }
+
+    // -- shrink in place ------------------------------------------------------
+    if (memory.chunks[index].size >= size) {
+        memset((uint8_t*)memory.chunks[index].ptr + size, 0,
+               memory.chunks[index].size - size);
+        memory.chunks[index].size = size;
+        memory.chunks[index].file = (char*)file;
+        memory.chunks[index].line = line;
+        return memory.chunks[index].ptr;
+    }
+
+    // -- grow -----------------------------------------------------------------
+    size_t  old_size = memory.chunks[index].size;
+    uint8_t* old_ptr = memory.chunks[index].ptr;
+
+    if (!old_ptr) {                           // ← guard NULL old_ptr
+        wrn("[mem/realloc] chunk has NULL ptr (%s:%d)", file, line);
         return NULL;
     }
 
-    // find the existing chunk
-    uint8_t* ptr = (uint8_t*)_Nullable_ptr;
-    for (size_t i = 0; i < memory.count; ++i) {
-        Chunk* c = &memory.chunks[i];
-        if (c->ptr != ptr || !c->used) continue;
+    uint8_t tmp[old_size];
+    memcpy(tmp, old_ptr, old_size);           // snapshot before mutation
 
-        // case 1: fits in existing slot — shrink in place
-        if (size <= c->size) {
-            if (_heap_trc) trc("[mem/realloc] shrink %p  %zu → %zu (%s:%d)",
-                               ptr, c->size, size, file, line);
-            memset(ptr + size, 0, c->size - size);  // zero released tail
-            c->size = size;
-            c->file = (char*)file;
-            c->line = line;
-            return (void*)ptr;
-        }
+    memory.chunks[index].used = false;
+    memset(old_ptr, 0, old_size);
 
-        // case 2: needs to grow — alloc new, copy, free old
-        void* new_ptr = ___malloc(size, file, line);
-        if (!new_ptr) {
-            if (_heap_wrn) wrn("[mem/realloc] OOM growing %p  %zu → %zu (%s:%d)",
-                               ptr, c->size, size, file, line);
-            return NULL;
-        }
-
-        memcpy(new_ptr, ptr, c->size);          // copy old payload
-        ___free(_Nullable_ptr, file, line);        // release old slot
-        return new_ptr;
+    void* new_ptr = ___malloc(size, file, line);
+    if (!new_ptr) {                           // ← guard NULL new_ptr
+        memory.chunks[index].used = true;     // rollback
+        memcpy(old_ptr, tmp, old_size);
+        wrn("[mem/realloc] OOM growing %p %zu→%zu (%s:%d)",
+            old_ptr, old_size, size, file, line);
+        return NULL;
     }
 
-    if (_heap_wrn) wrn("[mem/realloc] pointer %p not found (%s:%d)",
-                       _Nullable_ptr, file, line);
-    return NULL;
+    memcpy(new_ptr, tmp, old_size);
+    return new_ptr;
 }
 
 void* ___reallocarray(void* _Nullable_ptr, size_t nmemb, size_t size,
@@ -393,7 +427,7 @@ void* ___reallocarray(void* _Nullable_ptr, size_t nmemb, size_t size,
     return ___realloc(_Nullable_ptr, nmemb * size, file, line);
 }
 
-#ifdef MEMORY_DEBUG
+// #ifdef MEMORY_DEBUG
 #define MALLOC(p)            ___malloc(p,    __FILE__,__LINE__)
 #define FREE(p)              ___free(p,    __FILE__,__LINE__)
 #define CALLOC(n,s)          ___calloc(n,s,  __FILE__,__LINE__)
@@ -401,15 +435,15 @@ void* ___reallocarray(void* _Nullable_ptr, size_t nmemb, size_t size,
 #define REALLOCARRAY(p,n,s)  ___reallocarray(p,n,s,__FILE__,__LINE__)
 #define STRDUP(s)            ___strdup(s,   __FILE__, __LINE__)
 #define MEMMOVE(d,s,n)       ___memmove(d,s,n,__FILE__,__LINE__)
-#else
-#define MALLOC(p)            malloc(p)           //___malloc(p,    __FILE__,__LINE__)
-#define FREE(p)              free(p)             //___free(p,    __FILE__,__LINE__)
-#define CALLOC(n,s)          calloc(n,s)         //___calloc(n,s,  __FILE__,__LINE__)
-#define REALLOC(p,s)         realloc(p,s)        //___realloc(p,s,  __FILE__,__LINE__)
-#define REALLOCARRAY(p,n,s)  reallocarray(p,n,s) //___reallocarray(p,n,s,__FILE__,__LINE__)
-#define STRDUP(s)            strdup(s)           //___strdup(s,   __FILE__, __LINE__)
-#define MEMMOVE(d,s,n)       memmove(d,s,n)      //___memmove(d,s,n,__FILE__,__LINE__)
-#endif
+// #else
+// #define MALLOC(p)            malloc(p)           //___malloc(p,    __FILE__,__LINE__)
+// #define FREE(p)              free(p)             //___free(p,    __FILE__,__LINE__)
+// #define CALLOC(n,s)          calloc(n,s)         //___calloc(n,s,  __FILE__,__LINE__)
+// #define REALLOC(p,s)         realloc(p,s)        //___realloc(p,s,  __FILE__,__LINE__)
+// #define REALLOCARRAY(p,n,s)  reallocarray(p,n,s) //___reallocarray(p,n,s,__FILE__,__LINE__)
+// #define STRDUP(s)            strdup(s)           //___strdup(s,   __FILE__, __LINE__)
+// #define MEMMOVE(d,s,n)       memmove(d,s,n)      //___memmove(d,s,n,__FILE__,__LINE__)
+// #endif
 #define PRINT_MEMORY()        ___print_memory ()
 
 
